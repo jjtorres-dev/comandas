@@ -1,3 +1,19 @@
-node_modules
+# Dependencias y compilados
+node_modules/
+dist/
+dev-dist/
+
+# Variables de entorno (los .env.example sí se versionan)
 .env
-src/generated
+.env.*
+!.env.example
+
+# Cliente de Prisma generado
+backend/src/generated/
+
+# Configuración local de Claude Code (.agents/ y .claude/skills sí se versionan)
+.claude/settings.local.json
+
+# Registros y archivos del sistema
+*.log
+.DS_Store

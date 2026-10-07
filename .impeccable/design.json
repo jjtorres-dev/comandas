@@ -1,0 +1,522 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-07T16:42:27+00:00",
+  "title": "Design System: Comandas",
+  "extensions": {
+    "colorMeta": {
+      "primario": {
+        "role": "primary",
+        "displayName": "Turquesa de carta",
+        "canonical": "#0BB2AC",
+        "tonalRamp": [
+          "#044846",
+          "#08827D",
+          "#0BB7B0",
+          "#0FF0E8",
+          "#48F4EE",
+          "#82F7F3",
+          "#B7FBF8",
+          "#E7FEFD"
+        ]
+      },
+      "primario-presionado": {
+        "role": "primary",
+        "displayName": "Turquesa presionado",
+        "canonical": "#0AA19C",
+        "tonalRamp": [
+          "#044846",
+          "#08827E",
+          "#0BB6B1",
+          "#0FF0E9",
+          "#49F4EE",
+          "#82F7F3",
+          "#B7FBF8",
+          "#E7FEFD"
+        ]
+      },
+      "primario-fuerte": {
+        "role": "primary",
+        "displayName": "Turquesa fuerte",
+        "canonical": "#077A76",
+        "tonalRamp": [
+          "#044846",
+          "#07827E",
+          "#0BB7B1",
+          "#0EF1E9",
+          "#48F4EE",
+          "#82F8F4",
+          "#B7FBF8",
+          "#E7FEFD"
+        ]
+      },
+      "primario-profundo": {
+        "role": "primary",
+        "displayName": "Turquesa profundo",
+        "canonical": "#065F5C",
+        "tonalRamp": [
+          "#054846",
+          "#08827D",
+          "#0CB6B1",
+          "#0FF0E8",
+          "#49F3EE",
+          "#82F7F3",
+          "#B7FAF8",
+          "#E7FDFD"
+        ]
+      },
+      "primario-suave": {
+        "role": "primary",
+        "displayName": "Turquesa suave",
+        "canonical": "#D9F3F1",
+        "tonalRamp": [
+          "#123A37",
+          "#216963",
+          "#2F938C",
+          "#3DC2B8",
+          "#6CD0C9",
+          "#9ADFDA",
+          "#C5EDEA",
+          "#ECF9F8"
+        ]
+      },
+      "acento": {
+        "role": "secondary",
+        "displayName": "Naranja de carta",
+        "canonical": "#E28430",
+        "tonalRamp": [
+          "#432509",
+          "#794211",
+          "#AA5D18",
+          "#E07A1F",
+          "#E79A55",
+          "#EFBA8B",
+          "#F6D7BC",
+          "#FCF2E9"
+        ]
+      },
+      "acento-fuerte": {
+        "role": "secondary",
+        "displayName": "Naranja fuerte",
+        "canonical": "#A8500F",
+        "tonalRamp": [
+          "#462106",
+          "#7E3C0B",
+          "#B25510",
+          "#EA6F15",
+          "#EF924D",
+          "#F4B485",
+          "#F9D4B9",
+          "#FDF1E8"
+        ]
+      },
+      "acento-suave": {
+        "role": "secondary",
+        "displayName": "Naranja suave",
+        "canonical": "#FCEBDA",
+        "tonalRamp": [
+          "#472606",
+          "#7F450A",
+          "#B3610F",
+          "#EC7F13",
+          "#F09E4C",
+          "#F5BD84",
+          "#F9D9B8",
+          "#FDF2E7"
+        ]
+      },
+      "marino": {
+        "role": "neutral",
+        "displayName": "Marino",
+        "canonical": "#173863",
+        "tonalRamp": [
+          "#0E233E",
+          "#1A3F70",
+          "#25599D",
+          "#3075CF",
+          "#6296DA",
+          "#93B7E6",
+          "#C1D6F1",
+          "#EAF1FA"
+        ]
+      },
+      "tinta": {
+        "role": "neutral",
+        "displayName": "Tinta",
+        "canonical": "#0E2748",
+        "tonalRamp": [
+          "#0C2340",
+          "#163E73",
+          "#2058A2",
+          "#2A74D5",
+          "#5D95DF",
+          "#90B7E9",
+          "#BFD5F3",
+          "#EAF1FB"
+        ]
+      },
+      "texto-suave": {
+        "role": "neutral",
+        "displayName": "Texto suave",
+        "canonical": "#46597A",
+        "tonalRamp": [
+          "#1C2331",
+          "#324057",
+          "#475A7B",
+          "#5D76A2",
+          "#8497B8",
+          "#ABB8CF",
+          "#CED6E3",
+          "#EFF1F6"
+        ]
+      },
+      "listo": {
+        "role": "tertiary",
+        "displayName": "Lima",
+        "canonical": "#BDC767",
+        "tonalRamp": [
+          "#343815",
+          "#5E6525",
+          "#848E34",
+          "#AEBA45",
+          "#C2CB71",
+          "#D5DB9E",
+          "#E7EAC7",
+          "#F7F8EC"
+        ]
+      },
+      "listo-fuerte": {
+        "role": "tertiary",
+        "displayName": "Lima fuerte",
+        "canonical": "#55600F",
+        "tonalRamp": [
+          "#3B420A",
+          "#697713",
+          "#94A81A",
+          "#C3DD22",
+          "#D2E557",
+          "#E0ED8C",
+          "#EDF5BD",
+          "#F9FCE9"
+        ]
+      },
+      "listo-suave": {
+        "role": "tertiary",
+        "displayName": "Lima suave",
+        "canonical": "#EEF2CF",
+        "tonalRamp": [
+          "#373C10",
+          "#636C1D",
+          "#8C9829",
+          "#B8C936",
+          "#C9D667",
+          "#DAE397",
+          "#EAEFC3",
+          "#F8FAEB"
+        ]
+      },
+      "alerta": {
+        "role": "tertiary",
+        "displayName": "Ámbar",
+        "canonical": "#F2B21B",
+        "tonalRamp": [
+          "#483404",
+          "#825E07",
+          "#B7840A",
+          "#F1AE0E",
+          "#F5C148",
+          "#F8D582",
+          "#FBE7B7",
+          "#FEF7E7"
+        ]
+      },
+      "alerta-fuerte": {
+        "role": "tertiary",
+        "displayName": "Ámbar fuerte",
+        "canonical": "#7A5200",
+        "tonalRamp": [
+          "#4C3300",
+          "#8A5D00",
+          "#C28200",
+          "#FFAB00",
+          "#FFBF3D",
+          "#FFD47A",
+          "#FFE6B2",
+          "#FFF7E5"
+        ]
+      },
+      "alerta-suave": {
+        "role": "tertiary",
+        "displayName": "Ámbar suave",
+        "canonical": "#FDF1CC",
+        "tonalRamp": [
+          "#4A3803",
+          "#856505",
+          "#BA8F07",
+          "#F5BC0A",
+          "#F8CC45",
+          "#FADC7F",
+          "#FCEBB5",
+          "#FEF8E6"
+        ]
+      },
+      "peligro": {
+        "role": "tertiary",
+        "displayName": "Rojo",
+        "canonical": "#B3261E",
+        "tonalRamp": [
+          "#420E0B",
+          "#761914",
+          "#A6231C",
+          "#DA2E25",
+          "#E36059",
+          "#EC938D",
+          "#F4C0BD",
+          "#FBEAE9"
+        ]
+      },
+      "peligro-suave": {
+        "role": "tertiary",
+        "displayName": "Rojo suave",
+        "canonical": "#FBE4E2",
+        "tonalRamp": [
+          "#430E09",
+          "#791911",
+          "#AA2317",
+          "#E02E1F",
+          "#E86055",
+          "#EF938A",
+          "#F6C0BC",
+          "#FCEAE9"
+        ]
+      },
+      "fondo": {
+        "role": "neutral",
+        "displayName": "Papel",
+        "canonical": "#EFF5F6",
+        "tonalRamp": [
+          "#1C2E31",
+          "#325358",
+          "#46747C",
+          "#5C99A3",
+          "#83B1B9",
+          "#AACACF",
+          "#CEE0E3",
+          "#EFF5F6"
+        ]
+      },
+      "superficie": {
+        "role": "neutral",
+        "displayName": "Superficie",
+        "canonical": "#FFFFFF",
+        "tonalRamp": [
+          "#262626",
+          "#454545",
+          "#616161",
+          "#808080",
+          "#9E9E9E",
+          "#BDBDBD",
+          "#D9D9D9",
+          "#F2F2F2"
+        ]
+      },
+      "borde": {
+        "role": "neutral",
+        "displayName": "Borde",
+        "canonical": "#C5D3DC",
+        "tonalRamp": [
+          "#1D2830",
+          "#344956",
+          "#496679",
+          "#60869F",
+          "#86A3B6",
+          "#ACC0CD",
+          "#CFDBE2",
+          "#EFF3F5"
+        ]
+      },
+      "borde-fuerte": {
+        "role": "neutral",
+        "displayName": "Borde fuerte",
+        "canonical": "#7C8FA6",
+        "tonalRamp": [
+          "#1F262E",
+          "#384452",
+          "#4E5F73",
+          "#677D98",
+          "#8C9CB1",
+          "#B0BBC9",
+          "#D1D8E0",
+          "#F0F2F5"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Título de pantalla en monitor y nombre del negocio en el login."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Título de pantalla en celular."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Encabezado de formulario y pestañas en monitor."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Texto corrido; 1.25rem en campos y botones."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Etiquetas, ayudas y errores. El tamaño más pequeño del sistema."
+      }
+    },
+    "shadows": [
+      {
+        "name": "plato",
+        "value": "0 6px 20px -6px rgb(14 39 72 / 0.35)",
+        "purpose": "El disco blanco que sostiene el logo."
+      },
+      {
+        "name": "barra",
+        "value": "0 -4px 16px -8px rgb(14 39 72 / 0.25)",
+        "purpose": "Separa la navegación inferior del contenido."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-salida",
+        "value": "cubic-bezier(0.23, 1, 0.32, 1)",
+        "purpose": "Entradas, respuesta al presionar y deslizamiento del destino activo."
+      },
+      {
+        "name": "presion",
+        "value": "160ms",
+        "purpose": "Escala a 0.97 al presionar un control."
+      },
+      {
+        "name": "transicion",
+        "value": "200ms",
+        "purpose": "Cambio de paso en el login y destino activo de la navegación."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      },
+      {
+        "name": "xl",
+        "value": "1280px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Botón primario",
+      "kind": "button",
+      "refersTo": "boton-primario",
+      "description": "Acción principal de un formulario o pantalla.",
+      "html": "<button class=\"ds-boton\">Entrar</button>",
+      "css": ".ds-boton { font-family: 'Atkinson Hyperlegible Next Variable', system-ui, sans-serif; background: var(--color-primario, #0BB2AC); color: var(--color-tinta, #0E2748); min-height: 56px; padding: 0 24px; border: 0; border-radius: 14px; font-size: 20px; font-weight: 700; cursor: pointer; transition: transform 160ms cubic-bezier(0.23,1,0.32,1), background-color 160ms ease; } .ds-boton:hover { background: #0AA19C; } .ds-boton:active { transform: scale(0.97); } .ds-boton:focus-visible { outline: 3px solid #173863; outline-offset: 2px; }"
+    },
+    {
+      "name": "Botón de peligro",
+      "kind": "button",
+      "refersTo": "boton-peligro",
+      "description": "Acciones destructivas o de salida, como cerrar sesión.",
+      "html": "<button class=\"ds-boton-peligro\">Cerrar sesión</button>",
+      "css": ".ds-boton-peligro { font-family: 'Atkinson Hyperlegible Next Variable', system-ui, sans-serif; background: #FFFFFF; color: #B3261E; min-height: 56px; padding: 0 24px; border: 2px solid #B3261E; border-radius: 14px; font-size: 20px; font-weight: 700; cursor: pointer; transition: transform 160ms cubic-bezier(0.23,1,0.32,1), background-color 160ms ease; } .ds-boton-peligro:hover { background: #FBE4E2; } .ds-boton-peligro:active { transform: scale(0.97); } .ds-boton-peligro:focus-visible { outline: 3px solid #173863; outline-offset: 2px; }"
+    },
+    {
+      "name": "Campo",
+      "kind": "input",
+      "refersTo": "campo",
+      "description": "Campo de texto con la etiqueta arriba y la ayuda debajo.",
+      "html": "<label class=\"ds-campo\"><span>Usuario</span><input type=\"text\" /><small>Te lo da el dueño del local.</small></label>",
+      "css": ".ds-campo { font-family: 'Atkinson Hyperlegible Next Variable', system-ui, sans-serif; display: flex; flex-direction: column; gap: 8px; color: #173863; } .ds-campo span { font-size: 18px; font-weight: 700; } .ds-campo input { height: 56px; padding: 0 16px; border: 2px solid #7C8FA6; border-radius: 14px; background: #FFFFFF; color: #0E2748; font: inherit; font-size: 20px; caret-color: #077A76; } .ds-campo input:focus-visible { border-color: #173863; outline: 3px solid #173863; outline-offset: 2px; } .ds-campo small { font-size: 16px; color: #46597A; }"
+    },
+    {
+      "name": "Pestañas del local",
+      "kind": "nav",
+      "refersTo": "pestana-activa",
+      "description": "Secciones de cocina y caja dentro de la cabecera turquesa.",
+      "html": "<nav class=\"ds-pestanas\"><a class=\"ds-activa\" href=\"#\">Cocina</a><a href=\"#\">Caja</a><a href=\"#\">Delivery</a></nav>",
+      "css": ".ds-pestanas { font-family: 'Atkinson Hyperlegible Next Variable', system-ui, sans-serif; display: inline-grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; background: #FFFFFF; border-radius: 14px; box-shadow: 0 0 0 12px #0BB2AC; margin: 12px; } .ds-pestanas a { display: flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 20px; border-radius: 10px; color: #173863; font-size: 18px; font-weight: 700; text-decoration: none; transition: background-color 160ms ease; } .ds-pestanas a:hover { background: #D9F3F1; } .ds-pestanas a.ds-activa { background: #173863; color: #FFFFFF; } .ds-pestanas a:focus-visible { outline: 3px solid #173863; outline-offset: 2px; }"
+    },
+    {
+      "name": "Indicador de conexión",
+      "kind": "chip",
+      "refersTo": "indicador-en-linea",
+      "description": "Estado del tiempo real, siempre visible en la cabecera.",
+      "html": "<p class=\"ds-conexion\">En línea</p><p class=\"ds-conexion ds-reconectando\">Reconectando</p>",
+      "css": ".ds-conexion { font-family: 'Atkinson Hyperlegible Next Variable', system-ui, sans-serif; display: inline-flex; align-items: center; height: 36px; margin: 0 8px 0 0; padding: 0 12px; border-radius: 9999px; background: #EEF2CF; color: #0E2748; font-size: 16px; font-weight: 700; } .ds-conexion.ds-reconectando { background: #F2B21B; }"
+    },
+    {
+      "name": "Plato del logo",
+      "kind": "custom",
+      "description": "Disco blanco que sostiene el logo del negocio (o sus iniciales) sobre el turquesa.",
+      "html": "<span class=\"ds-plato\">CV</span>",
+      "css": ".ds-plato { font-family: 'Atkinson Hyperlegible Next Variable', system-ui, sans-serif; display: inline-grid; place-items: center; width: 96px; height: 96px; margin: 16px; border-radius: 9999px; background: #FFFFFF; color: #173863; font-size: 36px; font-weight: 700; box-shadow: 0 6px 20px -6px rgb(14 39 72 / 0.35), 0 0 0 16px #0BB2AC; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "La carta plastificada",
+    "overview": "La carta de una cevichería se lee de pie, con sol y con las manos ocupadas: turquesa plano, letras gruesas, precios grandes. Comandas toma de ahí su paleta, su peso tipográfico y su borde ondulado, y nada más. La estructura es la de una herramienta de trabajo: cada pantalla dice dónde estás, qué hay y qué se puede tocar.\n\nEl tema es claro porque se usa de día, en un local abierto y con la pantalla a veces sucia. El color hace trabajos concretos: el turquesa marca el armazón y la acción principal, el marino es el texto, y lima, ámbar y rojo son estados.\n\nLos tokens viven en `frontend/src/estilos.css` (bloque `@theme` de Tailwind v4). Este documento los explica; si difieren, manda el frontmatter.",
+    "keyCharacteristics": [
+      "Tema claro, sin modo oscuro.",
+      "Turquesa plano en el armazón; texto marino sobre blanco en el contenido.",
+      "Una sola familia tipográfica, con cuerpo de 18 px como mínimo.",
+      "Controles de 56 px de alto; ningún destino táctil baja de 48 px.",
+      "El nombre y el logo del negocio vienen siempre de la API."
+    ],
+    "rules": [
+      {
+        "name": "La regla de la tinta",
+        "body": "Sobre turquesa, naranja, lima o ámbar el texto es siempre `tinta`, nunca blanco. Blanco solo sobre `marino` y `peligro`.",
+        "section": "colors"
+      },
+      {
+        "name": "La regla de la cocina",
+        "body": "En `/local` el contenido es marino o tinta sobre blanco o papel (AAA). El texto sobre un relleno de color mide al menos 20 px en negrita, que es donde 5.4:1 a 5.7:1 alcanza AAA para texto grande.",
+        "section": "colors"
+      },
+      {
+        "name": "La regla del estado doble",
+        "body": "Un estado nunca se comunica solo con color: lleva ícono y palabra (\"En línea\", \"Reconectando\"). ",
+        "section": "colors"
+      },
+      {
+        "name": "La regla de los 16",
+        "body": "Ningún texto baja de 16 px, y el cuerpo es de 18 px.",
+        "section": "typography"
+      },
+      {
+        "name": "La regla del peso",
+        "body": "La jerarquía se marca con negrita y tamaño, no con mayúsculas sostenidas ni con gris. ",
+        "section": "typography"
+      }
+    ],
+    "dos": [
+      "Do usar `tinta` para todo texto sobre un relleno de color.",
+      "Do acompañar cada estado con ícono y palabra.",
+      "Do mantener cada destino táctil en 48 px o más, y los controles principales en 56 px.",
+      "Do tomar el nombre y el logo del negocio de la API y servir el logo sobre el plato blanco.",
+      "Do usar íconos de Phosphor en un solo peso por contexto: relleno para lo activo, regular para el resto.",
+      "Do respetar `prefers-reduced-motion`: sin desplazamientos, solo cambios de color y opacidad."
+    ],
+    "donts": [
+      "Don't poner texto blanco sobre turquesa, naranja, lima o ámbar.",
+      "Don't escribir el nombre o el logo de un negocio en el código.",
+      "Don't usar texto de menos de 16 px ni bordes de 1 px en controles.",
+      "Don't usar el naranja para estados: es acento; la alerta es ámbar.",
+      "Don't repetir la ola fuera del login ni añadir más formas decorativas.",
+      "Don't animar nada por encima de 300 ms ni acciones que se repiten todo el turno. "
+    ]
+  }
+}

@@ -1,0 +1,108 @@
+@import "tailwindcss";
+@import "@fontsource-variable/atkinson-hyperlegible-next/wght.css";
+
+/* Sistema de diseño de Comandas. La documentación está en /DESIGN.md.
+   Los cuatro colores base salen de design-ref/ (carta y logo); el resto son
+   variantes del mismo tono calculadas para cumplir contraste. */
+@theme {
+  --font-sans: "Atkinson Hyperlegible Next Variable", ui-sans-serif, system-ui, sans-serif;
+
+  /* Primario: turquesa de la carta */
+  --color-primario: #0bb2ac;
+  --color-primario-presionado: #0aa19c;
+  --color-primario-fuerte: #077a76;
+  --color-primario-profundo: #065f5c;
+  --color-primario-suave: #d9f3f1;
+
+  /* Acento: naranja de los títulos de la carta */
+  --color-acento: #e28430;
+  --color-acento-fuerte: #a8500f;
+  --color-acento-suave: #fcebda;
+
+  /* Texto: azul marino del logo */
+  --color-marino: #173863;
+  --color-tinta: #0e2748;
+  --color-texto-suave: #46597a;
+
+  /* Éxito / listo: lima del logo */
+  --color-listo: #bdc767;
+  --color-listo-fuerte: #55600f;
+  --color-listo-suave: #eef2cf;
+
+  /* Alerta y peligro: no están en las referencias, se eligieron para no
+     confundirse con el acento */
+  --color-alerta: #f2b21b;
+  --color-alerta-fuerte: #7a5200;
+  --color-alerta-suave: #fdf1cc;
+  --color-peligro: #b3261e;
+  --color-peligro-suave: #fbe4e2;
+
+  /* Neutros teñidos del papel de la carta */
+  --color-fondo: #eff5f6;
+  --color-superficie: #ffffff;
+  --color-borde: #c5d3dc;
+  --color-borde-fuerte: #7c8fa6;
+
+  --radius-control: 0.875rem;
+  --radius-panel: 1.25rem;
+
+  --shadow-plato: 0 6px 20px -6px rgb(14 39 72 / 0.35);
+  --shadow-barra: 0 -4px 16px -8px rgb(14 39 72 / 0.25);
+
+  --ease-salida: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-fondo font-sans text-lg text-marino antialiased;
+    min-height: 100dvh;
+    /* Sin rebote: la app se comporta como una app, no como una página */
+    overscroll-behavior-y: none;
+  }
+
+  ::selection {
+    background-color: var(--color-primario-suave);
+    color: var(--color-tinta);
+  }
+
+  input,
+  textarea {
+    caret-color: var(--color-primario-fuerte);
+  }
+
+  /* Un solo anillo de foco, visible sobre blanco y sobre turquesa */
+  :focus-visible {
+    outline: 3px solid var(--color-marino);
+    outline-offset: 2px;
+  }
+
+  button,
+  [role="tab"],
+  a {
+    touch-action: manipulation;
+  }
+}
+
+@layer components {
+  /* Respuesta inmediata al presionar: la interfaz "escucha" */
+  .presionable {
+    transition: transform 160ms var(--ease-salida), background-color 160ms ease, color 160ms ease;
+  }
+  .presionable:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .presionable:active:not(:disabled) {
+    transform: none;
+  }
+  .animate-spin {
+    animation-duration: 2.4s;
+  }
+}
