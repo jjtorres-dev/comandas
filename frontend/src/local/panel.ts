@@ -1,10 +1,10 @@
-// El turno del local: el sonido de los pedidos nuevos y la pantalla
+// El panel de cocina: el sonido de los pedidos nuevos y la pantalla
 // encendida. Los dos necesitan un toque del usuario para activarse
-// ("Empezar turno"), y se pierden al recargar la página.
+// ("Abrir cocina"), y se pierden al recargar la página.
 import { useSyncExternalStore } from "react";
 
 type Estado = {
-  iniciado: boolean;
+  abierta: boolean;
   // Si el navegador dejó mantener la pantalla encendida
   pantalla: "pendiente" | "encendida" | "no-disponible";
   // false si el equipo no pudo activar el sonido de los avisos
@@ -28,7 +28,7 @@ const leerArea = (): string | null => {
   }
 };
 
-let estado: Estado = { iniciado: false, pantalla: "pendiente", sonido: true, areaId: leerArea(), silenciados: new Set(), recienLlegados: new Set() };
+let estado: Estado = { abierta: false, pantalla: "pendiente", sonido: true, areaId: leerArea(), silenciados: new Set(), recienLlegados: new Set() };
 const oyentes = new Set<() => void>();
 
 function cambiar(parcial: Partial<Estado>) {
@@ -36,7 +36,7 @@ function cambiar(parcial: Partial<Estado>) {
   for (const oyente of oyentes) oyente();
 }
 
-export const useTurno = (): Estado =>
+export const usePanel = (): Estado =>
   useSyncExternalStore(
     (oyente) => {
       oyentes.add(oyente);
@@ -65,13 +65,13 @@ async function mantenerPantalla() {
 
 // Al volver a la pestaña, la pantalla encendida y el audio hay que pedirlos otra vez
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState !== "visible" || !estado.iniciado) return;
+  if (document.visibilityState !== "visible" || !estado.abierta) return;
   if (!bloqueo) void mantenerPantalla();
   if (audio?.state === "suspended") void audio.resume().catch(() => {});
 });
 
-// Se llama desde el botón "Empezar turno": ese toque es el permiso del navegador
-export function empezarTurno() {
+// Se llama desde el botón "Abrir cocina": ese toque es el permiso del navegador
+export function abrirCocina() {
   let sonido = true;
   try {
     audio ??= new AudioContext();
@@ -80,7 +80,7 @@ export function empezarTurno() {
     // sin audio quedan el destello y la etiqueta NUEVO, y se avisa en pantalla
     sonido = false;
   }
-  cambiar({ iniciado: true, sonido });
+  cambiar({ abierta: true, sonido });
   void mantenerPantalla();
   // Un aviso de muestra: confirma que el sonido funciona y cómo suena
   sonarNuevo();

@@ -6,33 +6,24 @@ import {
   ClockIcon,
   CookingPotIcon,
   FireIcon,
-  type Icon,
-  MopedIcon,
-  PicnicTableIcon,
-  ShoppingBagIcon,
   SparkleIcon,
   WarningIcon,
   WifiSlashIcon,
+  XCircleIcon,
+  XIcon,
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { ErrorDeCarga, Esqueleto } from "../../componentes/EstadoDeCarga";
 import { consultaCarta, consultaPedidosActivos } from "../../lib/consultas";
 import { haceCuanto, platosDeCombo, plural, useAhora } from "../../lib/formato";
-import type { ItemPedido, Pedido, TipoPedido } from "../../lib/tipos";
+import type { ItemPedido, Pedido } from "../../lib/tipos";
 import { cerrarDeshacer, deshacer, marcar, useDeshacer, useOcupado } from "../../local/acciones";
 import { armarPanel, type Comanda, type Listo, nombreDeTipo, paraEmpezar, paraListo, tardanzaDe } from "../../local/comandas";
-import { fijarArea, silenciar, useTurno } from "../../local/turno";
+import { fijarArea, silenciar, usePanel } from "../../local/panel";
+import { TIPOS } from "../../local/tiposDePedido";
+import { useCancelados } from "../../local/useCancelados";
 import { useConexion } from "../../tiempo-real/contexto";
-
-// Cada tipo de pedido tiene su color, su ícono y su palabra. El naranja es el
-// de Delivery (excepción de /local a la regla del acento); ámbar, rojo y lima
-// quedan libres para "tarda", "muy tarde" y "listo".
-const TIPOS: Record<TipoPedido, { icono: Icon; clases: string }> = {
-  MESA: { icono: PicnicTableIcon, clases: "border-b-[3px] border-tinta bg-superficie" },
-  PARA_LLEVAR: { icono: ShoppingBagIcon, clases: "bg-primario" },
-  DELIVERY: { icono: MopedIcon, clases: "bg-acento" },
-};
 
 const BOTON = "presionable inline-flex cursor-pointer items-center justify-center gap-2.5 rounded-control px-4 text-center leading-tight font-bold disabled:cursor-not-allowed disabled:opacity-60";
 const EMPEZAR = `${BOTON} bg-primario text-tinta hover:bg-primario-presionado`;
@@ -42,14 +33,16 @@ const CONTORNO = `${BOTON} border-2 border-marino bg-superficie text-marino hove
 export function Cocina() {
   const pedidos = useQuery(consultaPedidosActivos);
   const { data: carta } = useQuery(consultaCarta);
-  const { areaId } = useTurno();
+  const { areaId } = usePanel();
   const ahora = useAhora(15_000);
   const enLinea = useConexion() === "en-linea";
 
   const areas = useMemo(() => carta?.areas ?? [], [carta]);
   // Un filtro guardado de un área que ya no existe equivale a "Todas"
   const filtro = areas.some((a) => a.id === areaId) ? areaId : null;
-  const panel = useMemo(() => (pedidos.data ? armarPanel(pedidos.data, areas, filtro) : null), [pedidos.data, areas, filtro]);
+  // Lo recién cancelado sigue unos segundos a la vista, tachado
+  const { pedidos: visibles, tachados } = useCancelados(pedidos.data);
+  const panel = useMemo(() => (visibles ? armarPanel(visibles, areas, filtro, tachados) : null), [visibles, areas, filtro, tachados]);
   const nombreFiltro = areas.find((a) => a.id === filtro)?.nombre;
 
   return (
@@ -66,7 +59,7 @@ export function Cocina() {
       {/* En monitor esta fila queda fija bajo la cabecera: el filtro a la izquierda y
           "Deshacer" a la derecha, donde no tapa ninguna tarjeta. En celular, Deshacer
           va abajo, junto al pulgar. */}
-      <div className="flex items-center gap-4 lg:-my-2 lg:min-h-21 lg:py-2 xl:sticky xl:top-22 xl:z-10 xl:bg-fondo">
+      <div className="flex items-center gap-4 lg:sticky lg:top-(--alto-cabecera) lg:z-10 lg:-my-2 lg:min-h-21 lg:bg-fondo lg:py-2">
         {areas.length > 1 && (
           <nav aria-label="Filtrar por área">
             <ul className="flex flex-wrap gap-2 lg:gap-3">
@@ -105,19 +98,29 @@ export function Cocina() {
           </div>
         )
       ) : (
-        <div className={`flex flex-1 flex-col gap-6 ${panel.listos.length > 0 ? "xl:grid xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start" : ""}`}>
+        // En monitor la columna de "Recién listos" está siempre reservada: las
+        // tarjetas no cambian de ancho ni de lugar cuando aparece o se va un pedido listo
+        <div className="flex flex-1 flex-col gap-6 xl:grid xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
           {panel.comandas.length > 0 ? (
-            // Columnas en vez de filas: una tarjeta corta sube al hueco que deja una
-            // larga, y un pedido nuevo no queda escondido debajo de la pantalla.
-            // Dos columnas en monitor: con los tamaños de lectura a distancia, es el
-            // ancho en que una tarjeta de 6 platos cabe entera a 1920×1080.
-            <ul aria-label="Comandas" className="flex flex-col gap-4 lg:block lg:columns-2 lg:gap-6 min-[150rem]:columns-3">
-              {panel.comandas.map((comanda) => (
-                <li key={comanda.pedido.id} className="lg:mb-6 lg:break-inside-avoid">
-                  <TarjetaComanda comanda={comanda} ahora={ahora} />
-                </li>
+            // Dos columnas independientes en monitor (pares a la izquierda, impares a la
+            // derecha): una tarjeta corta sube al hueco que deja una larga, y cuando un
+            // pedido sale o entra, las tarjetas más antiguas que él no se mueven. Son dos
+            // porque, con los tamaños de lectura a distancia, es el ancho en que una
+            // tarjeta de 6 platos cabe entera a 1920×1080. En celular es una sola lista.
+            <div role="list" aria-label="Comandas" className="flex flex-col gap-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-6">
+              {[0, 1].map((columna) => (
+                <div key={columna} className="contents lg:flex lg:flex-col lg:gap-6">
+                  {panel.comandas.map((comanda, indice) =>
+                    indice % 2 === columna ? (
+                      // En celular las dos columnas se funden y `order` devuelve el orden de llegada
+                      <div key={comanda.pedido.id} role="listitem" style={{ order: indice }}>
+                        <TarjetaComanda comanda={comanda} ahora={ahora} />
+                      </div>
+                    ) : null,
+                  )}
+                </div>
               ))}
-            </ul>
+            </div>
           ) : (
             <div className="flex min-h-64 flex-1 flex-col items-center justify-center gap-4 rounded-panel border-2 border-dashed border-borde-fuerte px-6 py-12 text-center">
               <CheckCircleIcon aria-hidden="true" weight="duotone" className="size-20 text-primario-fuerte lg:size-28" />
@@ -125,7 +128,7 @@ export function Cocina() {
               <p className="max-w-[36ch] text-xl text-pretty text-marino lg:text-2xl">Los pedidos aparecen aquí apenas el mozo los envía.</p>
             </div>
           )}
-          {panel.listos.length > 0 && <RecienListos listos={panel.listos} ahora={ahora} />}
+          <RecienListos listos={panel.listos} ahora={ahora} />
         </div>
       )}
 
@@ -137,7 +140,7 @@ const minutosEnPalabras = (minutos: number) => (minutos < 60 ? `${minutos} min` 
 
 function TarjetaComanda({ comanda, ahora }: { comanda: Comanda; ahora: number }) {
   const { pedido, bloques } = comanda;
-  const { recienLlegados } = useTurno();
+  const { recienLlegados } = usePanel();
   const ocupado = useOcupado();
   const tipo = TIPOS[pedido.tipo];
   const { minutos, nivel } = tardanzaDe(comanda.desde, ahora);
@@ -176,6 +179,12 @@ function TarjetaComanda({ comanda, ahora }: { comanda: Comanda; ahora: number })
       </header>
 
       <div className="flex flex-col gap-2.5 p-3 lg:px-5">
+        {comanda.cancelada && (
+          <p role="status" className="flex items-center gap-2 text-xl font-bold text-peligro lg:text-2xl">
+            <XCircleIcon aria-hidden="true" weight="fill" className="size-7 shrink-0" />
+            Cancelado: ya no se prepara
+          </p>
+        )}
         {pedido.nota && (
           <p className="flex">
             <Nota texto={`Todo el pedido: ${pedido.nota}`} />
@@ -258,28 +267,30 @@ function TarjetaComanda({ comanda, ahora }: { comanda: Comanda; ahora: number })
         ))}
       </div>
 
-      <footer className="mt-auto flex gap-3 border-t-2 border-borde p-3 lg:px-5">
-        {sinEmpezar.length > 0 && (
+      {!comanda.cancelada && (
+        <footer className="mt-auto flex gap-3 border-t-2 border-borde p-3 lg:px-5">
+          {sinEmpezar.length > 0 && (
+            <button
+              type="button"
+              disabled={ocupado}
+              onClick={() => void marcar(pedido, sinEmpezar, "PREPARANDO", `${nombre}: en preparación`)}
+              className={`${EMPEZAR} min-h-18 flex-1 text-2xl lg:text-3xl`}
+            >
+              <FireIcon aria-hidden="true" weight="fill" className="hidden size-8 shrink-0 sm:block" />
+              {variosGrupos ? "Empezar todo" : "Empezar"}
+            </button>
+          )}
           <button
             type="button"
             disabled={ocupado}
-            onClick={() => void marcar(pedido, sinEmpezar, "PREPARANDO", `${nombre}: en preparación`)}
-            className={`${EMPEZAR} min-h-18 flex-1 text-2xl lg:text-3xl`}
+            onClick={() => void marcar(pedido, comanda.porHacer, "LISTO", `${nombre}: marcado listo`)}
+            className={`${LISTO} min-h-18 flex-1 text-2xl lg:text-3xl`}
           >
-            <FireIcon aria-hidden="true" weight="fill" className="hidden size-8 shrink-0 sm:block" />
-            {variosGrupos ? "Empezar todo" : "Empezar"}
+            <CheckIcon aria-hidden="true" weight="bold" className="hidden size-8 shrink-0 sm:block" />
+            {variosGrupos ? "Todo listo" : "Listo"}
           </button>
-        )}
-        <button
-          type="button"
-          disabled={ocupado}
-          onClick={() => void marcar(pedido, comanda.porHacer, "LISTO", `${nombre}: marcado listo`)}
-          className={`${LISTO} min-h-18 flex-1 text-2xl lg:text-3xl`}
-        >
-          <CheckIcon aria-hidden="true" weight="bold" className="hidden size-8 shrink-0 sm:block" />
-          {variosGrupos ? "Todo listo" : "Listo"}
-        </button>
-      </footer>
+        </footer>
+      )}
     </article>
   );
 }
@@ -298,6 +309,28 @@ function Nota({ texto }: { texto: string }) {
 // conEstado = false cuando el grupo entero ya dice "En curso" arriba
 function FilaItem({ item, pedido, ocupado, conEstado }: { item: ItemPedido; pedido: Pedido; ocupado: boolean; conEstado: boolean }) {
   const hecho = item.estado === "LISTO" || item.estado === "ENTREGADO";
+
+  // Recién cancelado: se ve tachado unos segundos, para que la cocina se entere, y desaparece solo
+  if (item.estado === "CANCELADO") {
+    return (
+      <li className="flex min-h-14 items-center gap-3 bg-peligro-suave px-3 py-1.5 lg:px-4">
+        <span className="flex w-20 shrink-0 flex-col gap-0.5 lg:w-24">
+          <span className="text-4xl leading-none font-bold text-texto-suave tabular-nums line-through lg:text-cantidad">
+            {item.cantidad}
+            <span className="text-2xl lg:text-3xl">×</span>
+          </span>
+          <span className="flex items-center gap-1 text-base leading-tight font-bold text-peligro lg:text-lg">
+            <XIcon aria-hidden="true" weight="bold" className="size-4 shrink-0" />
+            Cancelado
+          </span>
+        </span>
+        <span className="min-w-0 flex-1 text-2xl leading-tight font-bold wrap-anywhere text-texto-suave line-through lg:text-plato">
+          {item.nombreProducto}
+        </span>
+      </li>
+    );
+  }
+
   const contenido = (
     <>
       <span className="flex w-20 shrink-0 flex-col gap-0.5 lg:w-24">
@@ -361,6 +394,19 @@ function RecienListos({ listos, ahora }: { listos: Listo[]; ahora: number }) {
   // En monitor es una columna siempre abierta; en celular, una franja plegada
   const [abierto, setAbierto] = useState(() => window.matchMedia("(min-width: 80rem)").matches);
 
+  // Sin nada listo, en monitor la columna sigue en su sitio; en celular no ocupa lugar
+  if (listos.length === 0) {
+    return (
+      <aside aria-label="Recién listos" className="hidden rounded-panel border-2 border-borde bg-fondo px-4 py-3 xl:block">
+        <p className="flex min-h-8 items-center gap-2 text-xl font-bold text-marino lg:text-2xl">
+          <CheckCircleIcon aria-hidden="true" weight="bold" className="size-7 shrink-0 text-listo-fuerte" />
+          Recién listos
+        </p>
+        <p className="mt-2 text-xl text-texto-suave">Nada listo aún</p>
+      </aside>
+    );
+  }
+
   return (
     <details open={abierto} onToggle={(e) => setAbierto(e.currentTarget.open)} className="rounded-panel border-2 border-borde bg-fondo">
       <summary className="flex min-h-14 cursor-pointer list-none items-center gap-2 px-4 text-xl font-bold text-marino lg:text-2xl">
@@ -369,7 +415,7 @@ function RecienListos({ listos, ahora }: { listos: Listo[]; ahora: number }) {
         <CaretDownIcon aria-hidden="true" weight="bold" className={`size-6 shrink-0 xl:hidden ${abierto ? "rotate-180" : ""}`} />
       </summary>
       <ul className="flex flex-col gap-3 px-3 pb-3">
-        {listos.slice(0, MAXIMO_LISTOS).map(({ pedido, items, desde }) => {
+        {listos.slice(0, MAXIMO_LISTOS).map(({ pedido, items, listoEn }) => {
           const platos = items.reduce((suma, i) => suma + i.cantidad, 0);
           return (
             <li key={pedido.id} className="flex flex-col gap-3 rounded-control border-2 border-borde bg-superficie p-3">
@@ -378,7 +424,7 @@ function RecienListos({ listos, ahora }: { listos: Listo[]; ahora: number }) {
                   #{pedido.numero} · {nombreDeTipo(pedido)}
                 </p>
                 <p className="text-lg text-texto-suave lg:text-xl">
-                  {plural(platos, "plato", "platos")} · llegó {haceCuanto(desde, ahora)}
+                  {plural(platos, "plato", "platos")} · listo {haceCuanto(listoEn, ahora)}
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-2">

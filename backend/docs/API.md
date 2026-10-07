@@ -73,6 +73,7 @@ Lo devuelven todos los endpoints que crean o modifican un pedido, `GET
   "tipo": "DELIVERY",
   "estado": "PENDIENTE",
   "mesa": null,
+  "mesaLiberada": false,
   "mozo": { "id": "…", "nombre": "Mozo" },
   "cliente": { "nombre": "Rosa Pérez", "telefono": "987654321" },
   "direccionEntrega": "Jr. San Martín 245",
@@ -104,7 +105,8 @@ Lo devuelven todos los endpoints que crean o modifican un pedido, `GET
       "componentes": ["Ceviche Simple", "Arroz con Mariscos", "Chicharrón de Pescado"],
       "orden": 2,
       "idRonda": "…",
-      "creadoEn": "2026-10-07T15:39:12.123Z"
+      "creadoEn": "2026-10-07T15:39:12.123Z",
+      "listoEn": null
     }
   ]
 }
@@ -116,17 +118,20 @@ Lo devuelven todos los endpoints que crean o modifican un pedido, `GET
 | `tipo` | `MESA`, `DELIVERY` o `PARA_LLEVAR` |
 | `estado` | `PENDIENTE`, `PREPARANDO`, `LISTO`, `EN_CAMINO`, `ENTREGADO`, `CANCELADO` (ver abajo) |
 | `mesa` | `{ id, nombre }` en `MESA`; `null` en los demás |
+| `mesaLiberada` | `true` si el pedido volvió a quedar por cobrar (se anuló un pago) cuando su mesa ya tenía otro pedido abierto: sigue debiendo, pero no ocupa la mesa |
 | `mozo` | `{ id, nombre }` de quien creó el pedido (sea cual sea su rol) |
 | `cliente` | `{ nombre, telefono }` (cualquiera puede ser `null`), o `null` si no hay datos. Siempre `null` en `MESA` |
 | `direccionEntrega`, `referenciaEntrega` | Solo `DELIVERY`. Copia del momento del pedido |
 | `repartidor` | `{ id, nombre }` o `null` |
 | `total` | `subtotal + costoEnvio + cargoTapers - descuento` |
+| `totalPagado`, `saldoPendiente` | Solo cuentan los pagos vigentes: uno anulado no suma |
 | `tapersManual` | `true` si la cantidad de tapers se fijó a mano y ya no se recalcula |
 | `pagado` | `true` cuando lo cobrado iguala el total. Un pedido de mesa pagado libera la mesa |
 | `items` | En el orden en que se pidieron (`orden`: 1, 2, 3… a lo largo de todas las rondas). **Incluye los cancelados** |
 | `items[].estado` | `PENDIENTE`, `PREPARANDO`, `LISTO`, `ENTREGADO`, `CANCELADO` |
 | `items[].nombreProducto` | `"Producto"`, o `"Producto — Variante"` si la variante no es "Única". Copia del momento del pedido, igual que `precioUnitario` |
 | `items[].componentes` | Solo combos: nombres de los platos elegidos. `[]` en el resto |
+| `items[].listoEn` | Cuándo se marcó `LISTO`, o `null` si todavía no. Vuelve a `null` si el item regresa a `PENDIENTE` o `PREPARANDO`, y se conserva al pasar a `ENTREGADO` (o al deshacer esa entrega). El panel de cocina ordena "recién listos" con este dato |
 | `items[].idRonda` | Los items con el mismo `idRonda` se pidieron juntos. La primera ronda lleva el `idCliente` del pedido |
 
 **Estado del pedido.** Se recalcula solo a partir de sus items, sin contar los
@@ -165,6 +170,7 @@ Lo devuelven los endpoints de caja y el evento `caja:actualizada`.
   "totalesPorMetodo": { "EFECTIVO": "46.00", "YAPE": "70.00", "PLIN": "0.00", "TARJETA": "0.00" },
   "totalCobrado": "116.00",
   "pedidosCobrados": 1,
+  "pagosAnulados": 0,
   "vueltoEntregado": "4.00",
   "efectivoEsperado": "146.00",
   "efectivoContado": null,
@@ -176,7 +182,8 @@ Lo devuelven los endpoints de caja y el evento `caja:actualizada`.
 | Campo | Notas |
 |---|---|
 | `totalesPorMetodo` | Lo cobrado por método, ya descontado el vuelto |
-| `pedidosCobrados` | Pedidos distintos con al menos un pago en este turno |
+| `pedidosCobrados` | Pedidos distintos con al menos un pago vigente en este turno |
+| `pagosAnulados` | Pagos de este turno que se anularon. No cuentan en ningún otro campo del resumen |
 | `vueltoEntregado` | Suma de `recibido - monto` de los pagos en efectivo |
 | `efectivoEsperado` | `montoInicial + totalesPorMetodo.EFECTIVO`: lo que debería haber en el cajón |
 | `efectivoContado`, `diferencia`, `cerradoEn`, `cerradoPor` | `null` hasta el cierre. `diferencia = efectivoContado - efectivoEsperado` (negativo = falta) |
@@ -333,7 +340,8 @@ lleva en su código.
 ### `GET /api/mesas`
 
 **Roles**: `MOZO`, `LOCAL`, `ADMIN`. Mesas activas en orden. Una mesa está
-ocupada si tiene un pedido no pagado y no cancelado.
+ocupada si tiene un pedido no pagado y no cancelado (sin contar los que tienen
+`mesaLiberada`).
 
 **200**
 
@@ -626,8 +634,8 @@ Detalle para cobrar y para dividir la cuenta por platos. **Roles**: cualquiera.
     "numero": 1,
     "tipo": "MESA",
     "items": [
-      { "id": "…", "nombreProducto": "Ceviche Simple", "componentes": [], "cantidad": 2, "precioUnitario": "20.00", "subtotal": "40.00", "pagado": true },
-      { "id": "…", "nombreProducto": "Gaseosa Personal", "componentes": [], "cantidad": 1, "precioUnitario": "3.00", "subtotal": "3.00", "pagado": false }
+      { "id": "…", "nombreProducto": "Ceviche Simple", "componentes": [], "cantidad": 2, "precioUnitario": "20.00", "subtotal": "40.00", "cantidadPagada": 2, "pagado": true },
+      { "id": "…", "nombreProducto": "Gaseosa Personal", "componentes": [], "cantidad": 1, "precioUnitario": "3.00", "subtotal": "3.00", "cantidadPagada": 0, "pagado": false }
     ],
     "subtotal": "43.00",
     "costoEnvio": "0.00",
@@ -639,7 +647,11 @@ Detalle para cobrar y para dividir la cuenta por platos. **Roles**: cualquiera.
     "saldoPendiente": "3.00",
     "pagado": false,
     "pagos": [
-      { "id": "…", "metodo": "YAPE", "monto": "40.00", "referencia": null, "itemIds": ["…"], "creadoEn": "2026-10-07T16:02:00.000Z" }
+      {
+        "id": "…", "metodo": "YAPE", "monto": "40.00", "recibido": null, "vuelto": "0.00", "referencia": null,
+        "itemIds": ["…"], "creadoEn": "2026-10-07T16:02:00.000Z",
+        "anulado": false, "anuladoEn": null, "anuladoPor": null, "motivoAnulacion": null, "corregible": true
+      }
     ]
   }
 }
@@ -648,8 +660,11 @@ Detalle para cobrar y para dividir la cuenta por platos. **Roles**: cualquiera.
 | Campo | Notas |
 |---|---|
 | `items` | Sin los cancelados. `subtotal = precioUnitario × cantidad` |
-| `items[].pagado` | `true` si el item figura en los `itemIds` de algún pago, o si el pedido entero está pagado |
+| `items[].cantidadPagada` | Unidades de ese item ya cobradas en cuenta dividida (todas, si el pedido entero está pagado) |
+| `items[].pagado` | `true` cuando `cantidadPagada` llega a `cantidad` |
+| `pagos` | Todos los pagos del pedido, **incluidos los anulados** (`anulado: true`, con `anuladoEn`, `anuladoPor: { id, nombre }` y `motivoAnulacion`). Los anulados no cuentan en `totalPagado` ni en `cantidadPagada` |
 | `pagos[].itemIds` | Items que cubrió ese pago; `[]` si fue a cuenta del total |
+| `pagos[].corregible` | `true` si el pago está vigente y es del turno de caja abierto: se le puede cambiar el método o anular |
 
 **Errores**: 404 `NO_ENCONTRADO`.
 
@@ -662,7 +677,9 @@ Registra uno o varios pagos. **Roles**: `LOCAL`, `ADMIN`. Requiere caja abierta.
 | Campo | Tipo | |
 |---|---|---|
 | `pagos` | lista, 1–10 | Obligatorio. Varios pagos en una misma petición = pago mixto |
-| `itemIds` | lista de UUID, 1–100 | Opcional. Cuenta dividida: los items que se están pagando |
+| `idCobro` | UUID | Opcional, recomendado. Lo genera la caja una vez por cobro. Reenviar el mismo (porque la respuesta se perdió) devuelve lo ya registrado con **200**, sin cobrar otra vez ni emitir eventos |
+| `itemIds` | lista de UUID, 1–100 | Opcional. Cuenta dividida por platos enteros: los items que se están pagando |
+| `items` | lista de `{ itemId, cantidad }`, 1–100 | Opcional. Cuenta dividida por unidades: cuántas unidades de cada item se pagan (de un `2× Ceviche`, se puede cobrar 1). No se combina con `itemIds` |
 
 `pagos[]`:
 
@@ -676,10 +693,16 @@ Registra uno o varios pagos. **Roles**: `LOCAL`, `ADMIN`. Requiere caja abierta.
 Reglas:
 
 - La suma de los `monto` no puede superar el saldo pendiente.
-- Con `itemIds`: los items deben ser del pedido, no estar cancelados ni ya
-  pagados, y la suma de los `monto` debe ser **exactamente** la suma de sus
-  subtotales. Envío, tapers y descuento no pertenecen a ningún item: ese resto se
-  cobra con un pago sin `itemIds`.
+- Con `itemIds`: los items deben ser del pedido, no estar cancelados ni tener
+  ninguna unidad ya pagada, y la suma de los `monto` debe ser **exactamente** la
+  suma de sus subtotales.
+- Con `items`: igual, pero por unidades. `cantidad` no puede superar las unidades
+  que quedan sin pagar de ese item, y los `monto` deben sumar `precioUnitario ×
+  cantidad` de lo indicado.
+- Envío, tapers y descuento no pertenecen a ningún item: ese resto se cobra con
+  un pago sin `itemIds` ni `items`.
+- Los pagos de una misma petición (pago mixto) forman un solo cobro: sus items
+  se cuentan una sola vez.
 - Cuando lo pagado iguala el total, el pedido queda `pagado` y la mesa libre.
 
 **Ejemplo (mixto con vuelto)**
@@ -718,9 +741,61 @@ Emite `pedido:actualizado` y `caja:actualizada`.
 | 404 | `NO_ENCONTRADO` | El pedido no existe, o algún item no es de este pedido (o está cancelado) | |
 | 409 | `SIN_CAJA_ABIERTA` | No hay turno de caja abierto | |
 | 409 | `PAGO_EXCEDE_SALDO` | La suma supera el saldo pendiente | `saldoPendiente` |
-| 409 | `ITEM_PAGADO` | Alguno de los `itemIds` ya estaba pagado | `itemIds` |
+| 409 | `ITEM_PAGADO` | Alguno de los items ya estaba pagado, o se piden más unidades de las que quedan por pagar | `itemIds` |
 | 409 | `PEDIDO_PAGADO` | El pedido ya está pagado | |
 | 409 | `PEDIDO_CANCELADO` | El pedido está cancelado | |
+
+### Corregir un pago
+
+Un pago no se borra nunca. Mientras su turno de caja siga abierto se puede
+corregir de dos formas, las dos de **roles** `LOCAL` y `ADMIN`, y las dos quedan
+registradas (quién, cuándo, qué había antes). Después de cerrar la caja no se
+toca nada.
+
+Las dos responden **200** con el pedido, el pago y el turno ya actualizados, y
+emiten `pedido:actualizado` y `caja:actualizada`:
+
+```json
+{
+  "pedido": { "…": "Pedido completo" },
+  "pago": { "id": "…", "metodo": "EFECTIVO", "monto": "53.00", "recibido": "60.00", "vuelto": "7.00", "referencia": null, "itemIds": [], "creadoEn": "…", "anulado": false, "anuladoEn": null, "anuladoPor": null, "motivoAnulacion": null },
+  "turno": { "…": "Turno con su resumen" }
+}
+```
+
+#### `PATCH /api/pedidos/:id/pagos/:pagoId/metodo`
+
+Se cobró bien pero se anotó con otro método (era efectivo y se marcó Yape). El
+monto no cambia.
+
+| Campo | Tipo | |
+|---|---|---|
+| `metodo` | `"EFECTIVO"` \| `"YAPE"` \| `"PLIN"` \| `"TARJETA"` | Obligatorio |
+| `recibido` | número ≥ monto del pago | Solo `EFECTIVO`. Si falta, se asume pago exacto. Al pasar a otro método, el recibido y el vuelto se borran |
+| `referencia` | texto ≤ 100 | Opcional. Si no se envía, se conserva la que tenía; `""` la borra |
+
+#### `PATCH /api/pedidos/:id/pagos/:pagoId/anular`
+
+El pago estuvo mal (monto equivocado, pedido equivocado).
+
+**Body** `{ "motivo": "Monto equivocado" }`: texto de 3 a 200 caracteres, obligatorio.
+
+El pago queda marcado (`anulado`, `anuladoEn`, `anuladoPor`, `motivoAnulacion`) y
+deja de contar en la cuenta, en el pedido y en el resumen del turno, que suma 1
+a `pagosAnulados`. Si el pedido estaba pagado, vuelve a tener saldo pendiente y
+reaparece entre los activos. Si era de una mesa que ya tiene otro pedido abierto,
+queda con `mesaLiberada: true`: se cobra igual, pero no ocupa la mesa. Si la
+mesa estaba libre, vuelve a figurar ocupada por ese pedido.
+
+**Errores (las dos rutas)**
+
+| HTTP | `codigo` | Cuándo |
+|---|---|---|
+| 400 | `DATOS_INVALIDOS` | Falta `metodo` o `motivo`, o el motivo tiene menos de 3 caracteres |
+| 400 | `SOLICITUD_INVALIDA` | El pago ya tiene ese método; `recibido` en un método que no es efectivo, o menor que el monto |
+| 404 | `NO_ENCONTRADO` | El pedido no existe, o el pago no es de ese pedido |
+| 409 | `PAGO_ANULADO` | El pago ya estaba anulado |
+| 409 | `TURNO_CERRADO` | El pago es de un turno de caja ya cerrado (o no hay caja abierta) |
 
 ### `GET /api/pedidos/:id/nota-venta`
 
@@ -762,7 +837,7 @@ Nota de venta en texto, lista para enviar por WhatsApp. **Roles**: cualquiera.
 
 - La fecha es la de creación del pedido en hora de Lima. La cuarta línea es la
   mesa, `Para llevar` o `Delivery: <dirección>`. Las líneas de envío, tapers y
-  descuento solo aparecen si no son cero. Sin pagos dice `Pago: pendiente`; con
+  descuento solo aparecen si no son cero. Sin pagos vigentes dice `Pago: pendiente`; con
   pago parcial agrega `Pagado: S/ … - Saldo: S/ …`.
 - `whatsappUrl` es `null` si el pedido no tiene teléfono de cliente. Si lo tiene,
   abre el chat con ese número (prefijo 51) y el texto ya escrito.
@@ -793,6 +868,36 @@ un turno abierto por negocio.
 
 **200** `{ "turno": Turno }` con el resumen al momento, o `{ "turno": null }` si
 la caja está cerrada (no es un 404).
+
+### `GET /api/caja/cobrados`
+
+Pedidos con algún pago en el turno abierto, del cobro más reciente al más
+antiguo. Sirve para reenviar una nota de venta o corregir un pago antes del
+cierre.
+
+**200** — `{ "cobrados": [] }` si la caja está cerrada (no es un error):
+
+```json
+{
+  "cobrados": [
+    {
+      "pedido": {
+        "id": "…", "numero": 12, "tipo": "MESA",
+        "mesa": { "id": "…", "nombre": "Mesa 3" }, "cliente": null,
+        "total": "53.00", "totalPagado": "53.00", "saldoPendiente": "0.00", "pagado": true
+      },
+      "pagos": [
+        { "id": "…", "metodo": "YAPE", "monto": "53.00", "recibido": null, "vuelto": "0.00", "referencia": "OP 1", "itemIds": [], "creadoEn": "…", "anulado": false, "anuladoEn": null, "anuladoPor": null, "motivoAnulacion": null }
+      ],
+      "ultimoPagoEn": "2026-10-07T16:02:00.000Z"
+    }
+  ]
+}
+```
+
+`pagos` trae solo los de este turno, incluidos los anulados. `totalPagado` y
+`saldoPendiente` son los del pedido completo. `cliente` es `{ nombre, telefono }`
+o `null`.
 
 ### `POST /api/caja/cerrar`
 
@@ -853,8 +958,8 @@ enviar mensajes: el servidor solo emite.
 | Evento | Payload | Cuándo se emite |
 |---|---|---|
 | `pedido:creado` | [Pedido](#pedido) completo | `POST /pedidos` (no en reintentos con el mismo `idCliente`) |
-| `pedido:actualizado` | [Pedido](#pedido) completo | Ronda agregada, cambio de estado de items, item cancelado, cargos, repartidor, estado del pedido, pagos |
-| `caja:actualizada` | [Turno](#turno-de-caja) con su resumen | Apertura de caja, cada cobro, cierre de caja |
+| `pedido:actualizado` | [Pedido](#pedido) completo | Ronda agregada, cambio de estado de items, item cancelado, cargos, repartidor, estado del pedido, pagos y sus correcciones |
+| `caja:actualizada` | [Turno](#turno-de-caja) con su resumen | Apertura de caja, cada cobro, cada corrección de un pago, cierre de caja |
 
 Todos se emiten después de confirmar la transacción y los recibe todo el
 negocio, incluido el dispositivo que hizo el cambio.
@@ -896,7 +1001,10 @@ Notas para el frontend:
 | PATCH | `/api/pedidos/:id/estado` | MOZO, LOCAL, ADMIN | `pedido:actualizado` |
 | GET | `/api/pedidos/:id/cuenta` | cualquiera | |
 | POST | `/api/pedidos/:id/pagos` | LOCAL, ADMIN | `pedido:actualizado`, `caja:actualizada` |
+| PATCH | `/api/pedidos/:id/pagos/:pagoId/metodo` | LOCAL, ADMIN | `pedido:actualizado`, `caja:actualizada` |
+| PATCH | `/api/pedidos/:id/pagos/:pagoId/anular` | LOCAL, ADMIN | `pedido:actualizado`, `caja:actualizada` |
 | GET | `/api/pedidos/:id/nota-venta` | cualquiera | |
 | POST | `/api/caja/abrir` | LOCAL, ADMIN | `caja:actualizada` |
 | GET | `/api/caja/actual` | LOCAL, ADMIN | |
+| GET | `/api/caja/cobrados` | LOCAL, ADMIN | |
 | POST | `/api/caja/cerrar` | LOCAL, ADMIN | `caja:actualizada` |

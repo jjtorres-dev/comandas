@@ -182,7 +182,7 @@ export async function crearPedido(
       if (!mesa) throw noEncontrado("La mesa no existe");
 
       const abierto = await tx.pedido.findFirst({
-        where: { negocioId, mesaId: mesa.id, pagado: false, estado: { not: EstadoPedido.CANCELADO } },
+        where: { negocioId, mesaId: mesa.id, pagado: false, mesaLiberada: false, estado: { not: EstadoPedido.CANCELADO } },
         select: { id: true, numero: true },
       });
       if (abierto) {
@@ -303,17 +303,14 @@ export async function cambiarEstadoItems(sesion: Sesion, pedidoId: string, datos
       if (items.some((i) => i.estado === EstadoItem.CANCELADO)) {
         throw conflicto("ITEM_CANCELADO", "No se puede cambiar el estado de un item cancelado");
       }
-      await tx.pedidoItem.updateMany({ where: { pedidoId, id: { in: ids } }, data: { estado: datos.estado } });
+      await fijarEstado(tx, { pedidoId, id: { in: ids } }, datos.estado);
     } else {
       const delArea = { pedidoId, areaId: datos.areaId, estado: { not: EstadoItem.CANCELADO } };
       if ((await tx.pedidoItem.count({ where: delArea })) === 0) {
         throw noEncontrado("El pedido no tiene items de esa área");
       }
       // Lo ya entregado no se toca: marcar el área no devuelve platos a la cocina
-      await tx.pedidoItem.updateMany({
-        where: { ...delArea, estado: { notIn: [EstadoItem.CANCELADO, EstadoItem.ENTREGADO] } },
-        data: { estado: datos.estado },
-      });
+      await fijarEstado(tx, { ...delArea, estado: { notIn: [EstadoItem.CANCELADO, EstadoItem.ENTREGADO] } }, datos.estado);
     }
 
     await recalcular(tx, pedidoId);
@@ -321,6 +318,21 @@ export async function cambiarEstadoItems(sesion: Sesion, pedidoId: string, datos
   });
 
   return publicar("pedido:actualizado", actualizado);
+}
+
+// Cambia el estado de los items que cumplen el filtro y lleva la cuenta de
+// cuándo quedó listo cada uno (`listoEn`)
+async function fijarEstado(tx: Tx, where: Prisma.PedidoItemWhereInput, estado: EstadoItem) {
+  if (estado === EstadoItem.PENDIENTE || estado === EstadoItem.PREPARANDO) {
+    // Volvió a la cocina: ya no está listo
+    await tx.pedidoItem.updateMany({ where, data: { estado, listoEn: null } });
+    return;
+  }
+  // LISTO o ENTREGADO: los que ya tenían hora la conservan (entregar un plato
+  // listo, o deshacer esa entrega, no lo vuelve "recién listo"); el resto queda listo ahora
+  const ids = (await tx.pedidoItem.findMany({ where, select: { id: true } })).map((i) => i.id);
+  await tx.pedidoItem.updateMany({ where: { id: { in: ids }, listoEn: null }, data: { listoEn: new Date() } });
+  await tx.pedidoItem.updateMany({ where: { id: { in: ids } }, data: { estado } });
 }
 
 // Solo items PENDIENTES, salvo que quien cancela sea ADMIN. Recalcula los totales.
@@ -336,7 +348,7 @@ export async function cancelarItem(sesion: Sesion, pedidoId: string, itemId: str
     if (item.estado !== EstadoItem.PENDIENTE && !sesion.roles.includes(Rol.ADMIN)) {
       throw sinPermiso("El item ya está en preparación: solo el administrador puede cancelarlo");
     }
-    if ((await tx.pago.count({ where: { pedidoId, itemIds: { has: itemId } } })) > 0) {
+    if ((await tx.pago.count({ where: { pedidoId, anuladoEn: null, itemIds: { has: itemId } } })) > 0) {
       throw conflicto("ITEM_PAGADO", "El item ya fue cobrado y no se puede cancelar");
     }
 
@@ -354,7 +366,7 @@ export async function actualizarCargos(sesion: Sesion, pedidoId: string, datos: 
   const actualizado = await prisma.$transaction(async (tx) => {
     const pedido = await bloquearPedido(tx, sesion.negocioId, pedidoId);
     exigirNoCancelado(pedido);
-    if ((await tx.pago.count({ where: { pedidoId } })) > 0) {
+    if ((await tx.pago.count({ where: { pedidoId, anuladoEn: null } })) > 0) {
       throw conflicto("PEDIDO_CON_PAGOS", "El pedido ya tiene pagos: no se pueden cambiar sus cargos");
     }
     if (datos.costoEnvio !== undefined && pedido.tipo !== TipoPedido.DELIVERY) {

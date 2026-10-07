@@ -14,3 +14,7 @@ export async function actual(req: Request, res: Response) {
 export async function cerrar(req: Request, res: Response) {
   res.json(await servicio.cerrarCaja(sesionDe(req), esquemaCerrarCaja.parse(req.body)));
 }
+
+export async function cobrados(req: Request, res: Response) {
+  res.json({ cobrados: await servicio.cobradosDelTurno(sesionDe(req).negocioId) });
+}

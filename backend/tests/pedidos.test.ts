@@ -422,6 +422,34 @@ describe("rondas, estados y cancelaciones", () => {
     expect(entregado.body.pedido.estado).toBe("ENTREGADO");
   });
 
+  it("guarda cuándo quedó listo cada item (listoEn) y lo borra si vuelve a la cocina", async () => {
+    const creado = await crearPedido(mozo, { mesaId: a.mesas[0].id, items: [{ varianteId: a.v.ceviche }, { varianteId: a.v.gaseosa }] });
+    const pedido = creado.body.pedido as { id: string; items: { id: string; listoEn: string | null }[] };
+    const [primero, segundo] = pedido.items;
+    const cambiar = (itemIds: string[], estado: string) =>
+      request(app).patch(`/api/pedidos/${pedido.id}/items/estado`).set(conToken(cocina)).send({ itemIds, estado });
+    const listoEn = (res: { body: { pedido: { items: { id: string; listoEn: string | null }[] } } }, id: string) =>
+      res.body.pedido.items.find((i) => i.id === id)!.listoEn;
+
+    expect(primero.listoEn).toBeNull();
+
+    const antes = Date.now();
+    const listo = await cambiar([primero.id], "LISTO");
+    const hora = listoEn(listo, primero.id)!;
+    expect(new Date(hora).getTime()).toBeGreaterThanOrEqual(antes - 1000);
+    expect(listoEn(listo, segundo.id)).toBeNull();
+
+    // Marcarlo listo otra vez, entregarlo o deshacer la entrega no cambian la hora
+    expect(listoEn(await cambiar([primero.id, segundo.id], "LISTO"), primero.id)).toBe(hora);
+    expect(listoEn(await cambiar([primero.id], "ENTREGADO"), primero.id)).toBe(hora);
+    expect(listoEn(await cambiar([primero.id], "LISTO"), primero.id)).toBe(hora);
+
+    // De vuelta a la cocina ya no está listo; al terminarlo de nuevo, la hora es nueva
+    expect(listoEn(await cambiar([primero.id], "PREPARANDO"), primero.id)).toBeNull();
+    const otraVez = listoEn(await cambiar([primero.id], "LISTO"), primero.id)!;
+    expect(new Date(otraVez).getTime()).toBeGreaterThanOrEqual(new Date(hora).getTime());
+  });
+
   it("los items cancelados no cuentan para el estado del pedido", async () => {
     const pedido = await pedidoMixto();
     await cancelar(mozo, pedido.id, pedido.deBebidas[0].id);

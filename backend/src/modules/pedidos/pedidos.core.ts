@@ -11,7 +11,8 @@ export const incluirCompleto = {
   mesa: { select: { id: true, nombre: true } },
   mozo: { select: { id: true, nombre: true } },
   repartidor: { select: { id: true, nombre: true } },
-  pagos: { select: { monto: true } },
+  // Un pago anulado no cuenta en ningún total
+  pagos: { where: { anuladoEn: null }, select: { monto: true } },
   // En el orden en que se pidieron, ronda tras ronda
   items: { orderBy: [{ orden: "asc" }, { creadoEn: "asc" }, { id: "asc" }] },
 } satisfies Prisma.PedidoInclude;
@@ -28,6 +29,7 @@ export function serializar(p: PedidoCompleto) {
     tipo: p.tipo,
     estado: p.estado,
     mesa: p.mesa,
+    mesaLiberada: p.mesaLiberada,
     mozo: p.mozo,
     cliente:
       p.nombreCliente || p.telefonoCliente ? { nombre: p.nombreCliente, telefono: p.telefonoCliente } : null,
@@ -60,6 +62,7 @@ export function serializar(p: PedidoCompleto) {
       orden: i.orden,
       idRonda: i.idRonda,
       creadoEn: i.creadoEn,
+      listoEn: i.listoEn,
     })),
   };
 }
@@ -148,7 +151,7 @@ export async function recalcular(tx: Tx, pedidoId: string) {
     where: { id: pedidoId },
     include: {
       items: { where: { estado: { not: EstadoItem.CANCELADO } } },
-      pagos: { select: { monto: true } },
+      pagos: { where: { anuladoEn: null }, select: { monto: true } },
     },
   });
 

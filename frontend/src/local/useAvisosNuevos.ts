@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef } from "react";
 import { consultaCarta, consultaPedidosActivos } from "../lib/consultas";
 import { armarPanel, rondasSinEmpezar } from "./comandas";
-import { marcarLlegada, sonarNuevo, useTurno } from "./turno";
+import { marcarLlegada, sonarNuevo, usePanel } from "./panel";
 
 // Cada cuánto vuelve a sonar mientras haya algo sin empezar
 const REPETIR_CADA = 30_000;
@@ -11,7 +11,7 @@ const REPETIR_CADA = 30_000;
 // empiece ni toque su tarjeta. Vive en todo /local: también suena en Caja.
 // Devuelve cuántos pedidos están sin empezar (para la pestaña Cocina).
 export function useAvisosNuevos(): number {
-  const { iniciado, areaId, silenciados } = useTurno();
+  const { abierta, areaId, silenciados } = usePanel();
   const { data: pedidos } = useQuery(consultaPedidosActivos);
   const { data: carta } = useQuery(consultaCarta);
 
@@ -39,16 +39,16 @@ export function useAvisosNuevos(): number {
     const nuevas = sinEmpezar.filter((r) => !anteriores.has(r.clave));
     if (nuevas.length === 0) return;
     for (const { pedidoId } of nuevas) marcarLlegada(pedidoId);
-    if (iniciado) sonarNuevo();
-  }, [sinEmpezar, todas, iniciado]);
+    if (abierta) sonarNuevo();
+  }, [sinEmpezar, todas, abierta]);
 
   const porAtender = (sinEmpezar ?? []).filter((r) => !silenciados.has(r.clave)).length;
 
   useEffect(() => {
-    if (!iniciado || porAtender === 0) return;
+    if (!abierta || porAtender === 0) return;
     const reloj = setInterval(sonarNuevo, REPETIR_CADA);
     return () => clearInterval(reloj);
-  }, [iniciado, porAtender]);
+  }, [abierta, porAtender]);
 
   return new Set((sinEmpezar ?? []).map((r) => r.pedidoId)).size;
 }

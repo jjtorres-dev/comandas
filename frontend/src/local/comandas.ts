@@ -38,28 +38,43 @@ export type Comanda = {
   desde: string;
   // Todos los platos por preparar (del área filtrada)
   porHacer: ItemPedido[];
+  // Solo quedan platos recién cancelados: la tarjeta se despide tachada
+  cancelada: boolean;
 };
 
-export type Listo = { pedido: Pedido; items: ItemPedido[]; desde: string };
+// listoEn: cuándo quedó listo lo último de ese pedido
+export type Listo = { pedido: Pedido; items: ItemPedido[]; listoEn: string };
 
 const SIN_AREA: Area = { id: "", nombre: "Otros" };
 
-// areaId = null muestra todas las áreas
-export function armarPanel(pedidos: Pedido[], areas: Area[], areaId: string | null): { comandas: Comanda[]; listos: Listo[] } {
+const masAntiguo = (items: ItemPedido[]) => items.reduce((min, i) => (i.creadoEn < min ? i.creadoEn : min), items[0].creadoEn);
+
+// areaId = null muestra todas las áreas. `tachados` son los platos recién
+// cancelados: se siguen mostrando (tachados) unos segundos antes de desaparecer.
+export function armarPanel(
+  pedidos: Pedido[],
+  areas: Area[],
+  areaId: string | null,
+  tachados: ReadonlySet<string> = new Set(),
+): { comandas: Comanda[]; listos: Listo[] } {
   const comandas: Comanda[] = [];
   const listos: Listo[] = [];
 
   for (const pedido of pedidos) {
     // El número de ronda sale del pedido completo, no de lo filtrado
     const idsDeRonda = [...new Set(pedido.items.map((i) => i.idRonda))];
-    const visibles = pedido.items.filter((i) => i.estado !== "CANCELADO" && (areaId === null || i.areaId === areaId));
+    const visibles = pedido.items.filter(
+      (i) => (i.estado !== "CANCELADO" || tachados.has(i.id)) && (areaId === null || i.areaId === areaId),
+    );
     const pendientes = visibles.filter(porHacer);
+    const cancelados = visibles.filter((i) => i.estado === "CANCELADO");
 
-    if (pendientes.length === 0) {
+    if (pendientes.length === 0 && cancelados.length === 0) {
       const items = visibles.filter((i) => i.estado === "LISTO");
       // Un delivery que ya salió no se puede "deshacer" desde la cocina
       if (items.length > 0 && pedido.estado !== "EN_CAMINO") {
-        listos.push({ pedido, items, desde: items.reduce((min, i) => (i.creadoEn < min ? i.creadoEn : min), items[0].creadoEn) });
+        const horas = items.map((i) => i.listoEn ?? i.creadoEn);
+        listos.push({ pedido, items, listoEn: horas.reduce((max, h) => (h > max ? h : max)) });
       }
       continue;
     }
@@ -69,7 +84,7 @@ export function armarPanel(pedidos: Pedido[], areas: Area[], areaId: string | nu
     idsDeRonda.forEach((idRonda, indice) => {
       const deRonda = visibles.filter((i) => i.idRonda === idRonda);
       if (deRonda.length === 0) return;
-      if (!deRonda.some(porHacer)) return void rondasHechas.push(indice + 1);
+      if (!deRonda.some((i) => porHacer(i) || i.estado === "CANCELADO")) return void rondasHechas.push(indice + 1);
 
       const grupos: Grupo[] = [];
       for (const item of deRonda) {
@@ -80,18 +95,24 @@ export function armarPanel(pedidos: Pedido[], areas: Area[], areaId: string | nu
       }
       // Las áreas siempre en el mismo orden (el de la carta)
       grupos.sort((a, b) => areas.indexOf(a.area) - areas.indexOf(b.area));
-      bloques.push({ idRonda, numero: indice + 1, nueva: deRonda.every((i) => i.estado === "PENDIENTE"), grupos });
+      const vivos = deRonda.filter((i) => i.estado !== "CANCELADO");
+      bloques.push({ idRonda, numero: indice + 1, nueva: vivos.length > 0 && vivos.every((i) => i.estado === "PENDIENTE"), grupos });
     });
 
-    const desde = bloques
-      .flatMap((b) => b.grupos.flatMap((g) => g.items))
-      .reduce((min, i) => (i.creadoEn < min ? i.creadoEn : min), pendientes[0].creadoEn);
-    comandas.push({ pedido, bloques, rondasHechas, totalRondas: idsDeRonda.length, desde, porHacer: pendientes });
+    comandas.push({
+      pedido,
+      bloques,
+      rondasHechas,
+      totalRondas: idsDeRonda.length,
+      desde: masAntiguo(pendientes.length > 0 ? pendientes : cancelados),
+      porHacer: pendientes,
+      cancelada: pendientes.length === 0,
+    });
   }
 
   comandas.sort((a, b) => a.desde.localeCompare(b.desde));
   // Lo último que se marcó listo queda arriba
-  listos.reverse();
+  listos.sort((a, b) => b.listoEn.localeCompare(a.listoEn));
   return { comandas, listos };
 }
 

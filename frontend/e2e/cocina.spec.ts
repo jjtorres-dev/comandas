@@ -39,15 +39,15 @@ test("cocina ve llegar el pedido, lo prepara, deshace y el mozo recibe el aviso"
   };
   const tokenCocina = await tokenDe(request, "cocina", "cocina123");
 
-  await test.step("cocina empieza el turno: activa el sonido", async () => {
+  await test.step("cocina abre el panel: activa el sonido", async () => {
     await cocina.goto("/login");
     await cocina.getByLabel("Usuario").fill("cocina");
     await cocina.getByRole("textbox", { name: "Contraseña" }).fill("cocina123");
     await boton(cocina, "Entrar").click();
     await expect(cocina).toHaveURL(/\/local\/cocina/);
 
-    // Sin "Empezar turno" no hay panel: el navegador no dejaría sonar
-    await boton(cocina, "Empezar turno").click();
+    // Sin "Abrir cocina" no hay panel: el navegador no dejaría sonar
+    await boton(cocina, "Abrir cocina").click();
     await expect(boton(cocina, "Todas")).toHaveAttribute("aria-pressed", "true");
     expect(await avisos()).toBe(1); // el aviso de muestra
   });
@@ -154,4 +154,97 @@ test("cocina ve llegar el pedido, lo prepara, deshace y el mozo recibe el aviso"
   });
 
   await contextoCocina.close();
+});
+
+test("recién listos reservado y ordenado por hora, cancelados tachados y filtro fijo", async ({ browser, request }) => {
+  const tokenMozo = await tokenDe(request, "mozo", "mozo123");
+  const tokenCocina = await tokenDe(request, "cocina", "cocina123");
+  const tokenAdmin = await tokenDe(request, "admin", "admin123");
+  const con = (token: string) => ({ headers: { Authorization: `Bearer ${token}` } });
+  const carta = await (await request.get("/api/carta", con(tokenMozo))).json();
+  const variante = (nombre: string): string =>
+    carta.categorias.flatMap((c: { productos: { nombre: string; variantes: { id: string }[] }[] }) => c.productos).find((p: { nombre: string }) => p.nombre === nombre)
+      .variantes[0].id;
+  type Creado = { id: string; numero: number; items: { id: string }[] };
+  const paraLlevar = async (cliente: string, platos: string[]): Promise<Creado> => {
+    const respuesta = await request.post("/api/pedidos", {
+      ...con(tokenMozo),
+      data: { tipo: "PARA_LLEVAR", idCliente: crypto.randomUUID(), cliente: { nombre: cliente }, items: platos.map((p) => ({ varianteId: variante(p), cantidad: 1 })) },
+    });
+    expect(respuesta.status()).toBe(201);
+    return (await respuesta.json()).pedido;
+  };
+  const marcar = (pedido: Creado, estado: string) =>
+    request.patch(`/api/pedidos/${pedido.id}/items/estado`, { ...con(tokenCocina), data: { itemIds: pedido.items.map((i) => i.id), estado } });
+
+  // "Caro" es el más antiguo: los que salgan después no deben moverlo
+  const tercero = await paraLlevar("Caro", ["Ceviche Mixto", "Yuca Frita"]);
+  const primero = await paraLlevar("Ana", ["Jalea Mixta"]);
+  const segundo = await paraLlevar("Beto", ["Parihuela"]);
+
+  const contexto = await browser.newContext({ viewport: { width: 1920, height: 1080 }, locale: "es-PE" });
+  const cocina = await contexto.newPage();
+  await cocina.addInitScript(() => localStorage.setItem("comandas.negocio", "valentina"));
+  await cocina.goto("/login");
+  await cocina.getByLabel("Usuario").fill("cocina");
+  await cocina.getByRole("textbox", { name: "Contraseña" }).fill("cocina123");
+  await boton(cocina, "Entrar").click();
+  await boton(cocina, "Abrir cocina").click();
+
+  const tarjeta = (cliente: string) => cocina.getByRole("article", { name: new RegExp(cliente) });
+  const columna = cocina.getByRole("complementary", { name: "Recién listos" });
+
+  await test.step("la columna está reservada aunque no haya nada listo", async () => {
+    await expect(tarjeta("Caro")).toBeVisible();
+    await expect(tarjeta("Beto")).toBeVisible();
+    await expect(columna).toContainText("Nada listo aún");
+  });
+
+  await test.step("al aparecer un pedido listo, las tarjetas no cambian de ancho ni de lugar", async () => {
+    const antes = await tarjeta("Caro").boundingBox();
+    // Se marca listo primero el pedido MÁS NUEVO de los dos, y después el más antiguo
+    await marcar(segundo, "LISTO");
+    await expect(cocina.getByText("1 recién listo")).toBeVisible();
+    await marcar(primero, "LISTO");
+    await expect(cocina.getByText("2 recién listos")).toBeVisible();
+    const despues = await tarjeta("Caro").boundingBox();
+    expect(despues!.width).toBe(antes!.width);
+    expect(despues!.x).toBe(antes!.x);
+  });
+
+  await test.step("recién listos va por la hora en que se marcó listo, no por la de llegada", async () => {
+    const titulos = cocina.locator("details li p:first-child");
+    await expect(titulos).toHaveText([new RegExp(`#${primero.numero} `), new RegExp(`#${segundo.numero} `)]);
+  });
+
+  await test.step("un plato cancelado se ve tachado un momento y después desaparece", async () => {
+    await request.patch(`/api/pedidos/${tercero.id}/items/${tercero.items[1].id}/cancelar`, con(tokenAdmin));
+    const cancelado = tarjeta("Caro").getByRole("listitem").filter({ hasText: "Yuca Frita" });
+    await expect(cancelado).toContainText("Cancelado");
+    await expect(cancelado).toBeHidden({ timeout: 12_000 });
+    await expect(tarjeta("Caro")).toContainText("Ceviche Mixto");
+  });
+
+  await test.step("un pedido cancelado entero se despide tachado, sin botones", async () => {
+    await request.patch(`/api/pedidos/${tercero.id}/items/${tercero.items[0].id}/cancelar`, con(tokenAdmin));
+    await expect(tarjeta("Caro")).toContainText("Cancelado: ya no se prepara");
+    await expect(tarjeta("Caro").getByRole("button")).toHaveCount(0);
+    await expect(tarjeta("Caro")).toBeHidden({ timeout: 12_000 });
+  });
+
+  await test.step("entre 1024 y 1279 px el filtro queda fijo bajo la cabecera al desplazar", async () => {
+    for (const cliente of ["Dani", "Eli", "Fede"]) await paraLlevar(cliente, ["Ceviche Mixto", "Jalea Mixta", "Parihuela", "Yuca Frita"]);
+    await cocina.setViewportSize({ width: 1100, height: 700 });
+    await expect(tarjeta("Fede")).toBeVisible();
+    await cocina.mouse.wheel(0, 600);
+    const filtro = boton(cocina, "Todas");
+    await expect(filtro).toBeInViewport();
+    const alto = await cocina.evaluate(() => document.querySelector("header")!.getBoundingClientRect().bottom);
+    const y = (await filtro.boundingBox())!.y;
+    expect(y).toBeGreaterThanOrEqual(alto);
+    expect(y).toBeLessThan(alto + 40);
+    expect(await cocina.evaluate(() => scrollY)).toBeGreaterThan(300);
+  });
+
+  await contexto.close();
 });

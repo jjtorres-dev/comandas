@@ -92,11 +92,13 @@ model Usuario {
   activo       Boolean  @default(true)
   creadoEn     DateTime @default(now())
 
-  negocio        Negocio     @relation(fields: [negocioId], references: [id])
-  pedidosTomados Pedido[]    @relation("MozoPedido")
-  pagosCobrados  Pago[]
-  turnosAbiertos TurnoCaja[] @relation("TurnoAbiertoPor")
-  turnosCerrados TurnoCaja[] @relation("TurnoCerradoPor")
+  negocio        Negocio      @relation(fields: [negocioId], references: [id])
+  pedidosTomados Pedido[]     @relation("MozoPedido")
+  pagosCobrados  Pago[]       @relation("PagoCobradoPor")
+  pagosAnulados  Pago[]       @relation("PagoAnuladoPor")
+  cambiosDePago  PagoCambio[]
+  turnosAbiertos TurnoCaja[]  @relation("TurnoAbiertoPor")
+  turnosCerrados TurnoCaja[]  @relation("TurnoCerradoPor")
 
   @@unique([negocioId, usuario])
 }
@@ -266,11 +268,14 @@ model Pedido {
   cargoTapers    Decimal @default(0) @db.Decimal(10, 2)
 
   // total = subtotal + costoEnvio + cargoTapers - descuento
-  nota      String?
-  subtotal  Decimal @default(0) @db.Decimal(10, 2)
-  descuento Decimal @default(0) @db.Decimal(10, 2)
-  total     Decimal @default(0) @db.Decimal(10, 2)
-  pagado    Boolean @default(false)
+  nota         String?
+  subtotal     Decimal @default(0) @db.Decimal(10, 2)
+  descuento    Decimal @default(0) @db.Decimal(10, 2)
+  total        Decimal @default(0) @db.Decimal(10, 2)
+  pagado       Boolean @default(false)
+  // true si el pedido volvió a quedar por cobrar (se anuló un pago) cuando su
+  // mesa ya tenía otro pedido abierto: sigue debiendo, pero no ocupa la mesa
+  mesaLiberada Boolean @default(false)
 
   // Lo genera el celular del mozo: si se cae la señal y reintenta,
   // el servidor no crea el pedido dos veces
@@ -314,7 +319,10 @@ model PedidoItem {
   // Solo combos: platos elegidos, copiados como texto
   componentes String[] // ["Ceviche simple", "Chicharrón mixto"]
 
-  creadoEn DateTime @default(now()) // permite ver "rondas" agregadas después
+  creadoEn DateTime  @default(now()) // permite ver "rondas" agregadas después
+  // Cuándo se marcó LISTO. Vuelve a null si regresa a PENDIENTE o PREPARANDO;
+  // se conserva al pasar a ENTREGADO. El panel de cocina ordena "recién listos" con esto
+  listoEn  DateTime?
 
   pedido   Pedido           @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
   variante VarianteProducto @relation(fields: [varianteId], references: [id])
@@ -337,11 +345,42 @@ model Pago {
   recibido    Decimal?   @db.Decimal(10, 2) // solo efectivo: para calcular el vuelto
   referencia  String? // nº de operación Yape/Plin o voucher
   itemIds     String[] // cuenta dividida: los PedidoItem que cubre este pago (vacío = a cuenta)
+  // Cuenta dividida por unidades: { itemId: cantidad }. null en pagos antiguos
+  // (ahí cada itemId cuenta por todas sus unidades)
+  unidades    Json?
+  // Los pagos de un mismo cobro (pago mixto) comparten grupo: sus items se
+  // cuentan una sola vez
+  grupoId     String     @default(uuid())
   creadoEn    DateTime   @default(now())
 
-  pedido    Pedido    @relation(fields: [pedidoId], references: [id])
-  turnoCaja TurnoCaja @relation(fields: [turnoCajaId], references: [id])
-  usuario   Usuario   @relation(fields: [usuarioId], references: [id])
+  // Un pago nunca se borra: se anula, y deja de contar en todos los totales
+  anuladoEn       DateTime?
+  anuladoPorId    String?
+  motivoAnulacion String?
+
+  pedido     Pedido       @relation(fields: [pedidoId], references: [id])
+  turnoCaja  TurnoCaja    @relation(fields: [turnoCajaId], references: [id])
+  usuario    Usuario      @relation("PagoCobradoPor", fields: [usuarioId], references: [id])
+  anuladoPor Usuario?     @relation("PagoAnuladoPor", fields: [anuladoPorId], references: [id])
+  cambios    PagoCambio[]
+
+  @@index([turnoCajaId])
+}
+
+// Registro de toda corrección hecha a un pago (cambio de método o anulación)
+model PagoCambio {
+  id        String   @id @default(uuid())
+  pagoId    String
+  usuarioId String
+  tipo      String // "METODO" | "ANULACION"
+  // Qué había antes y qué quedó: { antes: {...}, despues: {...} } o { motivo }
+  detalle   Json
+  creadoEn  DateTime @default(now())
+
+  pago    Pago    @relation(fields: [pagoId], references: [id], onDelete: Cascade)
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+
+  @@index([pagoId])
 }
 
 // Apertura y cierre de caja del día

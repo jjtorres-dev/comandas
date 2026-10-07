@@ -381,13 +381,20 @@ envío normal, solo cuando ya falló una vez.
 Listo (`listo`), Entregado (`primario-suave`), Cancelado (`peligro-suave`).
 
 ### Comanda (cocina)
-Una tarjeta por pedido con platos por preparar, la más antigua primero, en dos
-columnas en monitor (una tarjeta corta sube al hueco que deja una larga) y en
-lista en celular. Son dos y no tres porque, con los tamaños de lectura a
-distancia, es el ancho en que una tarjeta de 6 platos cabe entera. De arriba abajo: franja del tipo con el número y el tiempo; nota general;
-rondas ya hechas en una línea gris; cada ronda pendiente como bloque (con
-"Ronda 2" y "NUEVO" si nadie la empezó), sus platos agrupados por área; y al
-pie "Empezar" y "Listo" de 72 px.
+Una tarjeta por pedido con platos por preparar, la más antigua primero. En
+monitor van en dos columnas independientes (pares a la izquierda, impares a la
+derecha): una tarjeta corta sube al hueco que deja una larga, y cuando un
+pedido entra o sale, las tarjetas más antiguas que él no se mueven. Son dos
+columnas porque, con los tamaños de lectura a distancia, es el ancho en que una
+tarjeta de 6 platos cabe entera. En celular es una sola lista. De arriba abajo:
+franja del tipo con el número y el tiempo; nota general; rondas ya hechas en
+una línea gris; cada ronda pendiente como bloque (con "Ronda 2" y "NUEVO" si
+nadie la empezó), sus platos agrupados por área; y al pie "Empezar" y "Listo"
+de 72 px.
+
+Un plato cancelado se queda 6 segundos tachado, con fondo `peligro-suave` y la
+palabra "Cancelado", antes de desaparecer; si se cancela el pedido entero, la
+tarjeta se despide igual, sin botones.
 
 Tamaños mínimos en monitor (1920×1080), con sus tokens: número del pedido
 48 px, cantidad 40 px (`text-cantidad`), plato 28 px (`text-plato`), nota 26 px
@@ -402,13 +409,51 @@ encabezado del área si todo el grupo está igual.
 Todo cambio de estado muestra durante 8 segundos qué se hizo y un botón
 "Deshacer", con una línea que se acorta. En monitor va en la fila del filtro, a
 la derecha, donde no tapa ninguna tarjeta; en celular, abajo. Lo marcado listo
-queda además en "Recién listos" (columna angosta en monitor, franja plegada en
-celular) con "Deshacer" y "Entregado".
+queda además en "Recién listos", ordenado por la hora en que se marcó listo,
+con "Deshacer" y "Entregado". En monitor es una columna angosta siempre
+reservada (vacía dice "Nada listo aún"): las tarjetas no cambian de ancho
+cuando aparece o desaparece un pedido listo. En celular es una franja plegada.
 
-### Empezar turno
-`/local` abre con un solo botón enorme: ese toque activa el sonido de los
+La fila del filtro queda fija bajo la cabecera al desplazar, en cualquier
+ancho de monitor: la cabecera publica su alto en `--alto-cabecera`.
+
+### Abrir cocina
+`/local` abre con un solo botón enorme, "Abrir cocina" ("turno" es palabra de la
+caja): ese toque activa el sonido de los
 pedidos nuevos y pide mantener la pantalla encendida. Si el navegador no lo
 permite, queda una franja `alerta-suave` que lo dice.
+
+### Caja
+Se usa de cerca, en el monitor, con mouse y teclado: no lleva los tamaños de
+Cocina, salvo los tres números que no pueden salir mal, que van muy grandes:
+lo que falta cobrar (60 px), el vuelto mientras se escribe (60 px) y el vuelto
+a entregar después de cobrar (72 px, sobre `listo`).
+
+- **Tres columnas:** Por cobrar (lista), Cuenta y Cobro. En celular, la lista
+  deja su lugar a la cuenta y el cobro, uno debajo del otro.
+- **Método de pago:** cuatro botones de 64 px con su tecla a la vista (E, Y,
+  P, T). Ninguno viene elegido; el elegido es `primario` con borde `tinta` y
+  check. "Cobrar" siempre lleva el monto escrito y, apagado, dice debajo qué
+  falta.
+- **Forma de cobro:** tres opciones juntas con una siempre elegida (Todo junto,
+  Por platos, Partes iguales), como en las hojas del mozo.
+- **Diferencia de caja:** nunca un número con signo. "Cuadra" sobre `listo`,
+  "Sobra S/ 2.00" sobre `alerta`, "Falta S/ 5.00" sobre `peligro`, con ícono.
+- **Pago anulado:** tachado, con "Anulado por …" y su motivo en `peligro`.
+  Anular es la única acción roja de la caja y pide motivo antes de habilitarse.
+- **Franja del turno:** fija abajo, con los totales por método y "Efectivo
+  esperado" destacado sobre `primario-suave`.
+
+### Diálogo
+Para una corrección o una confirmación en `/local` (ajustar, cambiar método,
+anular, cerrar caja): `<dialog>` modal centrado, borde `tinta` de 3 px, título,
+botón de cerrar de 48 px y la acción al pie. Aparece en 150 ms.
+
+### Teclado (caja)
+E, Y, P y T eligen el método, Enter cobra o confirma, Esc vuelve un paso y las
+flechas recorren Por cobrar. Las letras no actúan mientras se escribe texto
+(n.º de operación, teléfono), y nada de esto actúa con un diálogo abierto. Tras
+un clic del mouse el botón suelta el foco, para que el Enter siguiente cobre.
 
 ### Feedback
 Tres animaciones, todas de una sola vez: `pulso` (180 ms) en la cantidad que

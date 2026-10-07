@@ -28,7 +28,7 @@ export function Mesas() {
   // Platos listos por mesa, sea de quien sea el pedido
   const listosPorMesa = new Map<string, number>();
   for (const pedido of pedidos) {
-    if (pedido.mesa) listosPorMesa.set(pedido.mesa.id, listosDe(pedido).reduce((suma, i) => suma + i.cantidad, 0));
+    if (pedido.mesa && !pedido.mesaLiberada) listosPorMesa.set(pedido.mesa.id, listosDe(pedido).reduce((suma, i) => suma + i.cantidad, 0));
   }
 
   const paraLlevar = pedidos.filter((p) => p.tipo === "PARA_LLEVAR");

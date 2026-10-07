@@ -246,3 +246,49 @@ html:has(dialog.hoja[open]) {
     }
   }
 }
+
+@layer components {
+  /* Diálogo centrado para una corrección o una confirmación en /local (cerrar
+     caja, anular un pago). Es un <dialog> modal, como la hoja inferior. */
+  .dialogo {
+    width: calc(100% - 2rem);
+    max-width: 36rem;
+    max-height: calc(100dvh - 2rem);
+    margin: auto;
+    padding: 0;
+    overflow: hidden;
+    border: 3px solid var(--color-tinta);
+    border-radius: var(--radius-panel);
+    background: var(--color-superficie);
+    color: var(--color-marino);
+    opacity: 0;
+    transform: scale(0.97);
+    transition:
+      opacity 150ms ease,
+      transform 150ms var(--ease-salida),
+      overlay 150ms allow-discrete,
+      display 150ms allow-discrete;
+  }
+  .dialogo[open] {
+    display: flex;
+    flex-direction: column;
+    opacity: 1;
+    transform: scale(1);
+  }
+  @starting-style {
+    .dialogo[open] {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+  }
+  .dialogo::backdrop {
+    background-color: rgb(14 39 72 / 0.55);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialogo,
+  .dialogo[open] {
+    transform: none;
+  }
+}

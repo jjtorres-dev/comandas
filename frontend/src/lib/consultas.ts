@@ -1,6 +1,6 @@
 import { QueryClient, queryOptions } from "@tanstack/react-query";
 import { api, ErrorApi } from "./api";
-import type { Carta, Mesa, Pedido } from "./tipos";
+import type { Carta, Cobrado, Cuenta, Mesa, Pedido, Turno } from "./tipos";
 
 // Claves de TanStack Query. Los eventos de Socket.IO invalidan por estas raíces.
 export const claves = {
@@ -39,3 +39,21 @@ export const consultaPedidosActivos = queryOptions({
   queryKey: [...claves.pedidos, "activos"] as const,
   queryFn: async ({ signal }) => (await api<{ pedidos: Pedido[] }>("/pedidos/activos", { signal })).pedidos,
 });
+
+// Todo lo de caja cuelga de claves.caja: el evento caja:actualizada lo refresca
+export const consultaCaja = queryOptions({
+  queryKey: [...claves.caja, "actual"] as const,
+  queryFn: async ({ signal }) => (await api<{ turno: Turno | null }>("/caja/actual", { signal })).turno,
+});
+
+export const consultaCobrados = queryOptions({
+  queryKey: [...claves.caja, "cobrados"] as const,
+  queryFn: async ({ signal }) => (await api<{ cobrados: Cobrado[] }>("/caja/cobrados", { signal })).cobrados,
+});
+
+// La cuenta cuelga de claves.pedidos: cualquier cambio del pedido la vuelve a pedir
+export const consultaCuenta = (pedidoId: string) =>
+  queryOptions({
+    queryKey: [...claves.pedidos, "cuenta", pedidoId] as const,
+    queryFn: async ({ signal }) => (await api<{ cuenta: Cuenta }>(`/pedidos/${pedidoId}/cuenta`, { signal })).cuenta,
+  });

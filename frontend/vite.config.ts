@@ -30,6 +30,8 @@ export default defineConfig(({ mode }) => {
 
   return {
     customLogger: registro,
+    // Las pruebas E2E levantan su propio Vite con otra carpeta de caché
+    cacheDir: entorno.CACHE_VITE || undefined,
     plugins: [
       react(),
       tailwindcss(),

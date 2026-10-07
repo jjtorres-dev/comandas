@@ -9,4 +9,5 @@ rutasCaja.use(requireAuth, requireRol(Rol.LOCAL, Rol.ADMIN));
 
 rutasCaja.post("/abrir", controlador.abrir);
 rutasCaja.get("/actual", controlador.actual);
+rutasCaja.get("/cobrados", controlador.cobrados);
 rutasCaja.post("/cerrar", controlador.cerrar);

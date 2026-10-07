@@ -20,6 +20,9 @@ está en `../CLAUDE.md`. Todos los comandos de este archivo se ejecutan desde
   mismo contenedor; cada prueba vacía sus tablas)
 - `npm run db:up`: levanta Postgres y Adminer (usa `../docker-compose.yml`)
 - `npm run db:migrate`: `prisma migrate dev && prisma generate`
+- `npm run e2e:servidor`: servidor para las pruebas E2E del frontend
+  (`scripts/e2e.ts`): base `comandas_e2e` recién migrada y con el seed, puerto
+  3100. Lo levanta Playwright; no toca la base de desarrollo
 - `npm run db:studio`: Prisma Studio
 - `npm run db:seed`: ejecuta `prisma/seed.ts`. Borra y recrea todos los datos de
   la Cevichería Valentina (incluidos pedidos, pagos y turnos de caja). Aborta si
@@ -77,6 +80,9 @@ está en `../CLAUDE.md`. Todos los comandos de este archivo se ejecutan desde
   estado y si quedó pagado) y `publicar` después del commit.
 - Idempotencia: `Pedido.idCliente` al crear y `PedidoItem.idRonda` al agregar una
   ronda; ambos son UUID que genera el cliente. La primera ronda usa el `idCliente`.
+- `PedidoItem.listoEn` guarda cuándo se marcó LISTO (`fijarEstado` en
+  `pedidos.service.ts`): null al volver a PENDIENTE o PREPARANDO, se conserva
+  al entregar.
 - Una ronda puede traer `nota`: se agrega a `Pedido.nota` con `" · "`, nunca la
   reemplaza (un pedido nuevo que entra como ronda no pierde su nota general).
 - Errores: lanzar `ErrorApp` (`src/lib/errores.ts`); el middleware responde
@@ -96,7 +102,14 @@ está en `../CLAUDE.md`. Todos los comandos de este archivo se ejecutan desde
 - Caja: un solo turno abierto por negocio. `Pago.monto` es neto de vuelto
   (`recibido - monto` = vuelto), así que efectivo esperado = monto inicial +
   efectivo cobrado. Un pedido queda pagado cuando lo cobrado iguala el total; eso
-  libera la mesa. `Pago.itemIds` marca qué items cubre un pago al dividir la cuenta.
+  libera la mesa. `Pago.itemIds` marca qué items cubre un pago al dividir la
+  cuenta y `Pago.unidades` cuántas unidades de cada uno; los pagos de un mismo
+  cobro comparten `grupoId` (`unidadesPagadas` en `pagos.service.ts`).
+- Un pago nunca se borra: se anula (`anuladoEn`, `anuladoPorId`,
+  `motivoAnulacion`) o se le cambia el método, solo mientras su turno siga
+  abierto, y cada corrección deja una fila en `PagoCambio`. **Toda consulta que
+  sume pagos filtra `anuladoEn: null`.** Anular reabre el pedido; si su mesa ya
+  tiene otro pedido abierto queda con `Pedido.mesaLiberada` y no la ocupa.
 
 ## Reglas del modelo de datos
 

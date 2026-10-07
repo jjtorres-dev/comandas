@@ -77,19 +77,28 @@ Después, seguir `DESIGN.md`: los tokens están en `frontend/src/estilos.css`
   con el plato delante (`"Ceviche Simple: sin cebolla"`).
 - Panel de cocina (`/local/cocina`): `src/local/comandas.ts` arma las comandas
   a partir de los pedidos activos (funciones puras), `acciones.ts` cambia
-  estados siempre con "Deshacer", y `turno.ts` guarda lo que solo vale tras
-  "Empezar turno" (sonido, pantalla encendida, filtro de área). Los avisos de
+  estados siempre con "Deshacer", y `panel.ts` guarda lo que solo vale tras
+  "Abrir cocina" (sonido, pantalla encendida, filtro de área). Los avisos de
   pedido nuevo (`useAvisosNuevos`) viven en `LayoutLocal`: suenan en cualquier
   pestaña del local y se repiten hasta que alguien toca la tarjeta o Empezar.
   Los umbrales de tardanza están en `UMBRALES` de `comandas.ts`.
+- Caja (`/local/caja`): `paginas/local/Caja.tsx` y `paginas/local/caja/`
+  (`CobrarPedido` con la cuenta y las formas de dividir, `FormularioCobro` con
+  métodos, vuelto, pago mixto y atajos de teclado, `Cobrados` con las
+  correcciones, `Turno` con abrir, la franja y cerrar). Las cuentas de la
+  pantalla se hacen en céntimos enteros (`local/dinero.ts`); lo que vale es lo
+  que responde el servidor. Las consultas de caja cuelgan de `claves.caja` y la
+  cuenta y la nota de venta de `claves.pedidos`.
 - Hojas inferiores: `HojaInferior` se ajusta al teclado (meta viewport con
   `interactive-widget=resizes-content` más `visualViewport`). Los avisos de
   sonner salen abajo, sobre la barra fija de cada pantalla, que publica su alto
   con `useEspacioAvisos`.
-- Prueba de punta a punta: `npm run e2e` desde `frontend/` (Playwright, 412×915)
-  contra el entorno de desarrollo con el seed (`e2e/mozo.spec.ts` y
-  `e2e/cocina.spec.ts`, que abre al mozo y a la cocina a la vez). Usan mesas
-  libres y las liberan al terminar.
+- Pruebas de punta a punta: `npm run e2e` desde `frontend/` (Playwright;
+  `e2e/mozo.spec.ts` a 412×915, `e2e/cocina.spec.ts`, que abre al mozo y a la
+  cocina a la vez, y `e2e/caja.spec.ts` con el turno de caja completo). **No tocan la base de desarrollo**: Playwright levanta su
+  propio backend (`npm run e2e:servidor` en `backend/`, puerto 3100, base
+  `comandas_e2e` con migraciones y seed en cada corrida) y su propio Vite
+  (puerto 5183). Solo hace falta el contenedor de Postgres.
 - La PWA se llama "Comandas" y sus íconos son genéricos (`frontend/public/`).
 
 ## Convenciones

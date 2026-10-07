@@ -10,7 +10,7 @@ import type { DatosAbrirCaja, DatosCerrarCaja } from "./caja.schemas";
 const incluirTurno = {
   abiertoPor: { select: { id: true, nombre: true } },
   cerradoPor: { select: { id: true, nombre: true } },
-  pagos: { select: { pedidoId: true, metodo: true, monto: true, recibido: true } },
+  pagos: { select: { pedidoId: true, metodo: true, monto: true, recibido: true, anuladoEn: true } },
 } satisfies Prisma.TurnoCajaInclude;
 
 type TurnoCompleto = Prisma.TurnoCajaGetPayload<{ include: typeof incluirTurno }>;
@@ -18,12 +18,13 @@ type TurnoCompleto = Prisma.TurnoCajaGetPayload<{ include: typeof incluirTurno }
 // Turno con su resumen. `monto` ya es neto de vuelto, así que el efectivo
 // esperado en el cajón es montoInicial + efectivo cobrado.
 function resumir(turno: TurnoCompleto) {
-  const porMetodo = (metodo: MetodoPago) =>
-    sumar(turno.pagos.filter((p) => p.metodo === metodo).map((p) => p.monto));
+  // Los pagos anulados siguen guardados, pero no cuentan en ningún total
+  const pagos = turno.pagos.filter((p) => p.anuladoEn === null);
+  const porMetodo = (metodo: MetodoPago) => sumar(pagos.filter((p) => p.metodo === metodo).map((p) => p.monto));
 
   const efectivoCobrado = porMetodo(MetodoPago.EFECTIVO);
   const efectivoEsperado = turno.montoInicial.plus(efectivoCobrado);
-  const vuelto = sumar(turno.pagos.map((p) => (p.recibido ? p.recibido.minus(p.monto) : CERO)));
+  const vuelto = sumar(pagos.map((p) => (p.recibido ? p.recibido.minus(p.monto) : CERO)));
 
   return {
     id: turno.id,
@@ -39,8 +40,9 @@ function resumir(turno: TurnoCompleto) {
       PLIN: dinero(porMetodo(MetodoPago.PLIN)),
       TARJETA: dinero(porMetodo(MetodoPago.TARJETA)),
     },
-    totalCobrado: dinero(sumar(turno.pagos.map((p) => p.monto))),
-    pedidosCobrados: new Set(turno.pagos.map((p) => p.pedidoId)).size,
+    totalCobrado: dinero(sumar(pagos.map((p) => p.monto))),
+    pedidosCobrados: new Set(pagos.map((p) => p.pedidoId)).size,
+    pagosAnulados: turno.pagos.length - pagos.length,
     vueltoEntregado: dinero(vuelto),
     efectivoEsperado: dinero(efectivoEsperado),
     // Solo tras el cierre
@@ -113,9 +115,9 @@ export async function cerrarCaja(sesion: Sesion, datos: DatosCerrarCaja) {
 
     // Pedidos cobrados a medias: se avisa, pero no impiden cerrar
     const parciales = await tx.pedido.findMany({
-      where: { negocioId, pagado: false, estado: { not: EstadoPedido.CANCELADO }, pagos: { some: {} } },
+      where: { negocioId, pagado: false, estado: { not: EstadoPedido.CANCELADO }, pagos: { some: { anuladoEn: null } } },
       orderBy: { creadoEn: "asc" },
-      include: { pagos: { select: { monto: true } } },
+      include: { pagos: { where: { anuladoEn: null }, select: { monto: true } } },
     });
 
     return {
@@ -142,5 +144,64 @@ export async function cerrarCaja(sesion: Sesion, datos: DatosCerrarCaja) {
       pendientes > 0
         ? `La caja se cerró con ${pendientes} pedido(s) con pago parcial pendiente de cobrar`
         : null,
+  };
+}
+
+// Pedidos con algún pago en el turno abierto, del cobro más reciente al más
+// antiguo. Incluye los pagos anulados (marcados): es la pantalla para
+// corregir un cobro o reenviar una nota de venta antes de cerrar la caja.
+export async function cobradosDelTurno(negocioId: string) {
+  const turno = await prisma.turnoCaja.findFirst({ where: { negocioId, cerradoEn: null }, select: { id: true } });
+  if (!turno) return [];
+
+  const pedidos = await prisma.pedido.findMany({
+    where: { negocioId, pagos: { some: { turnoCajaId: turno.id } } },
+    include: {
+      mesa: { select: { id: true, nombre: true } },
+      // Todos los pagos vivos del pedido dan el saldo; los de este turno se listan
+      pagos: { orderBy: { creadoEn: "asc" }, include: { anuladoPor: { select: { id: true, nombre: true } } } },
+    },
+  });
+
+  return pedidos
+    .map((pedido) => {
+      const delTurno = pedido.pagos.filter((p) => p.turnoCajaId === turno.id);
+      const totalPagado = sumar(pedido.pagos.filter((p) => p.anuladoEn === null).map((p) => p.monto));
+      return {
+        pedido: {
+          id: pedido.id,
+          numero: pedido.numero,
+          tipo: pedido.tipo,
+          mesa: pedido.mesa,
+          cliente: pedido.nombreCliente || pedido.telefonoCliente ? { nombre: pedido.nombreCliente, telefono: pedido.telefonoCliente } : null,
+          total: dinero(pedido.total),
+          totalPagado: dinero(totalPagado),
+          saldoPendiente: dinero(Prisma.Decimal.max(0, pedido.total.minus(totalPagado))),
+          pagado: pedido.pagado,
+        },
+        pagos: delTurno.map(serializarPago),
+        ultimoPagoEn: delTurno[delTurno.length - 1].creadoEn,
+      };
+    })
+    .sort((a, b) => b.ultimoPagoEn.getTime() - a.ultimoPagoEn.getTime());
+}
+
+type PagoConAnulador = Prisma.PagoGetPayload<{ include: { anuladoPor: { select: { id: true; nombre: true } } } }>;
+
+// Forma en que un pago viaja en la cuenta y en los cobrados del turno
+export function serializarPago(p: PagoConAnulador) {
+  return {
+    id: p.id,
+    metodo: p.metodo,
+    monto: dinero(p.monto),
+    recibido: p.recibido ? dinero(p.recibido) : null,
+    vuelto: dinero(p.recibido ? p.recibido.minus(p.monto) : CERO),
+    referencia: p.referencia,
+    itemIds: p.itemIds,
+    creadoEn: p.creadoEn,
+    anulado: p.anuladoEn !== null,
+    anuladoEn: p.anuladoEn,
+    anuladoPor: p.anuladoPor,
+    motivoAnulacion: p.motivoAnulacion,
   };
 }

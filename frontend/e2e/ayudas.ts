@@ -54,3 +54,27 @@ export async function mesasLibres(api: APIRequestContext, cuantas: number): Prom
   expect(libres.length, `Hacen falta ${cuantas} mesas libres. Cobra o cancela pedidos, o corre \`npm run db:seed\` en backend/`).toBeGreaterThanOrEqual(cuantas);
   return libres;
 }
+
+// Deja la base de pruebas sin pedidos activos, para que el archivo siguiente
+// empiece limpio. Lo que no tiene pagos se cancela; lo demás se termina de
+// cobrar (abriendo la caja un momento si hace falta) y se marca entregado.
+export async function limpiarActivos(api: APIRequestContext) {
+  const token = con(await tokenDe(api, "admin", "admin123"));
+  type Activo = Pedido & { pagado: boolean; totalPagado: string; saldoPendiente: string };
+  const activos = async () => ((await (await api.get("/api/pedidos/activos", token)).json()) as { pedidos: Activo[] }).pedidos;
+  const vivos = (pedido: Activo) => pedido.items.filter((i) => i.estado !== "CANCELADO");
+
+  for (const pedido of await activos()) {
+    if (pedido.pagado || Number(pedido.totalPagado) > 0) continue;
+    for (const item of vivos(pedido)) await api.patch(`/api/pedidos/${pedido.id}/items/${item.id}/cancelar`, token);
+  }
+
+  const conPagos = await activos();
+  if (conPagos.length === 0) return;
+  const abrio = (await api.post("/api/caja/abrir", { ...token, data: { montoInicial: 0 } })).ok();
+  for (const pedido of conPagos) {
+    if (!pedido.pagado) await api.post(`/api/pedidos/${pedido.id}/pagos`, { ...token, data: { pagos: [{ metodo: "YAPE", monto: Number(pedido.saldoPendiente) }] } });
+    await api.patch(`/api/pedidos/${pedido.id}/items/estado`, { ...token, data: { itemIds: vivos(pedido).map((i) => i.id), estado: "ENTREGADO" } });
+  }
+  if (abrio) await api.post("/api/caja/cerrar", { ...token, data: { efectivoContado: 0 } });
+}

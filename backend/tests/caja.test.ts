@@ -381,3 +381,200 @@ describe("POST /api/caja/cerrar", () => {
     expect(res.body.aviso).toBe("La caja se cerró con 1 pedido(s) con pago parcial pendiente de cobrar");
   });
 });
+
+describe("cuenta dividida por unidades", () => {
+  it("cobra 1 de 2 unidades de una línea y lleva la cuenta de las que faltan", async () => {
+    await abrir(caja);
+    const pedido = await pedidoDeMesa(); // 2 ceviches (20 c/u) + pota (10) + gaseosa (3)
+
+    const mal = await pagar(caja, pedido.id, { pagos: [{ metodo: "YAPE", monto: 40 }], items: [{ itemId: pedido.ceviche, cantidad: 1 }] });
+    expect(mal.status).toBe(400);
+    expect(mal.body.error).toMatchObject({ codigo: "SOLICITUD_INVALIDA", subtotalItems: "20.00" });
+
+    const uno = await pagar(caja, pedido.id, { pagos: [{ metodo: "YAPE", monto: 20 }], items: [{ itemId: pedido.ceviche, cantidad: 1 }] });
+    expect(uno.status).toBe(201);
+    const items = async () => (await cuenta(caja, pedido.id)).body.cuenta.items as { id: string; cantidadPagada: number; pagado: boolean }[];
+    expect((await items()).find((i) => i.id === pedido.ceviche)).toMatchObject({ cantidadPagada: 1, pagado: false });
+
+    // Ya no quedan 2 unidades libres, ni se puede cobrar "el item entero"
+    const dos = await pagar(caja, pedido.id, { pagos: [{ metodo: "YAPE", monto: 40 }], items: [{ itemId: pedido.ceviche, cantidad: 2 }] });
+    const entero = await pagar(caja, pedido.id, { pagos: [{ metodo: "YAPE", monto: 40 }], itemIds: [pedido.ceviche] });
+    expect([dos.status, entero.status]).toEqual([409, 409]);
+    expect(dos.body.error).toMatchObject({ codigo: "ITEM_PAGADO", itemIds: [pedido.ceviche] });
+
+    // Pago mixto sobre unidades: sus items se cuentan una sola vez
+    const mixto = await pagar(caja, pedido.id, {
+      pagos: [{ metodo: "PLIN", monto: 10 }, { metodo: "EFECTIVO", monto: 20, recibido: 50 }],
+      items: [{ itemId: pedido.ceviche, cantidad: 1 }, { itemId: pedido.pota, cantidad: 1 }],
+    });
+    expect(mixto.status).toBe(201);
+    expect((await items()).map((i) => i.cantidadPagada)).toEqual([2, 1, 0]);
+
+    const ambos = await pagar(caja, pedido.id, { pagos: [{ metodo: "YAPE", monto: 3 }], itemIds: [pedido.gaseosa], items: [{ itemId: pedido.gaseosa, cantidad: 1 }] });
+    expect(ambos.status).toBe(400);
+
+    const resto = await pagar(caja, pedido.id, { pagos: [{ metodo: "YAPE", monto: 3 }], itemIds: [pedido.gaseosa] });
+    expect(resto.body.pedido).toMatchObject({ pagado: true, saldoPendiente: "0.00" });
+  });
+});
+
+describe("idempotencia del cobro", () => {
+  it("reintentar con el mismo idCobro no cobra dos veces", async () => {
+    await abrir(caja);
+    const pedido = await pedidoDeMesa(); // 53
+    const cobro = { idCobro: "0b7f6a52-3a0e-4a65-8f43-3f3c1b6a9d10", pagos: [{ metodo: "EFECTIVO", monto: 20, recibido: 50 }] };
+
+    const primero = await pagar(caja, pedido.id, cobro);
+    const reintento = await pagar(caja, pedido.id, cobro);
+    expect([primero.status, reintento.status]).toEqual([201, 200]);
+    expect(reintento.body).toMatchObject({ vuelto: "30.00", saldoPendiente: "33.00", pagos: [{ id: primero.body.pagos[0].id }] });
+    expect(await prisma.pago.count({ where: { pedidoId: pedido.id } })).toBe(1);
+    expect((await actual(caja)).body.turno.totalCobrado).toBe("20.00");
+
+    // También cuando el reintento llega con el pedido ya pagado
+    const resto = { idCobro: "7d0c2a0e-93c5-4f0b-a4f5-6a1d1b2c3d4e", pagos: [{ metodo: "YAPE", monto: 33 }] };
+    const [r1, r2] = [await pagar(caja, pedido.id, resto), await pagar(caja, pedido.id, resto)];
+    expect([r1.status, r2.status]).toEqual([201, 200]);
+    expect(r2.body.pedido.pagado).toBe(true);
+    // Sin idCobro, cada petición es un cobro distinto
+    expect((await pagar(caja, pedido.id, { pagos: [{ metodo: "YAPE", monto: 1 }] })).body.error.codigo).toBe("PEDIDO_PAGADO");
+  });
+});
+
+describe("cobrados del turno y corrección de pagos", () => {
+  const cobrados = (token: string) => request(app).get("/api/caja/cobrados").set(conToken(token));
+  const cambiarMetodo = (token: string, pedidoId: string, pagoId: string, cuerpo: object) =>
+    request(app).patch(`/api/pedidos/${pedidoId}/pagos/${pagoId}/metodo`).set(conToken(token)).send(cuerpo);
+  const anular = (token: string, pedidoId: string, pagoId: string, cuerpo: object) =>
+    request(app).patch(`/api/pedidos/${pedidoId}/pagos/${pagoId}/anular`).set(conToken(token)).send(cuerpo);
+
+  it("GET /caja/cobrados lista los pedidos con pagos del turno abierto, el más reciente primero", async () => {
+    expect((await cobrados(caja)).body).toEqual({ cobrados: [] });
+    await abrir(caja);
+    const primero = await pedidoDeMesa();
+    const segundo = await crearPedido(mozo, { tipo: "PARA_LLEVAR", cliente: { nombre: "Rosa" }, items: [{ varianteId: a.v.gaseosa }] });
+    await pagar(caja, primero.id, { pagos: [{ metodo: "YAPE", monto: 53, referencia: "OP 1" }] });
+    await pagar(caja, segundo.body.pedido.id, { pagos: [{ metodo: "EFECTIVO", monto: 2, recibido: 5 }] });
+
+    const res = await cobrados(caja);
+    expect(res.status).toBe(200);
+    expect(res.body.cobrados.map((c: { pedido: { id: string } }) => c.pedido.id)).toEqual([segundo.body.pedido.id, primero.id]);
+    expect(res.body.cobrados[1]).toMatchObject({
+      pedido: { tipo: "MESA", mesa: { nombre: "Mesa 1" }, total: "53.00", pagado: true, saldoPendiente: "0.00" },
+      pagos: [{ metodo: "YAPE", monto: "53.00", referencia: "OP 1", anulado: false }],
+    });
+    expect(res.body.cobrados[0]).toMatchObject({
+      pedido: { tipo: "PARA_LLEVAR", cliente: { nombre: "Rosa" }, pagado: false },
+      pagos: [{ metodo: "EFECTIVO", monto: "2.00", recibido: "5.00", vuelto: "3.00" }],
+    });
+
+    // Solo caja y dueño; otro negocio no ve nada; con la caja cerrada, tampoco
+    expect((await cobrados(mozo)).status).toBe(403);
+    expect((await cobrados(await tokenDe(b, "cocina"))).body).toEqual({ cobrados: [] });
+    await cerrar(caja, { efectivoContado: 52 });
+    expect((await cobrados(caja)).body).toEqual({ cobrados: [] });
+  });
+
+  it("cambiar método: mueve el pago entre totales, cambia el efectivo esperado y queda registrado", async () => {
+    await abrir(caja, 50);
+    const pedido = await pedidoDeMesa();
+    const pago = (await pagar(caja, pedido.id, { pagos: [{ metodo: "YAPE", monto: 53, referencia: "OP 9" }] })).body.pagos[0];
+    expect((await actual(caja)).body.turno).toMatchObject({ totalesPorMetodo: { YAPE: "53.00", EFECTIVO: "0.00" }, efectivoEsperado: "50.00" });
+
+    expect((await cambiarMetodo(mozo, pedido.id, pago.id, { metodo: "EFECTIVO" })).status).toBe(403);
+    expect((await cambiarMetodo(caja, pedido.id, pago.id, { metodo: "YAPE" })).status).toBe(400);
+    expect((await cambiarMetodo(caja, pedido.id, pago.id, { metodo: "PLIN", recibido: 60 })).status).toBe(400);
+    expect((await cambiarMetodo(caja, pedido.id, pago.id, { metodo: "EFECTIVO", recibido: 50 })).status).toBe(400);
+
+    const cambio = await cambiarMetodo(caja, pedido.id, pago.id, { metodo: "EFECTIVO", recibido: 60 });
+    expect(cambio.status).toBe(200);
+    expect(cambio.body.pago).toMatchObject({ metodo: "EFECTIVO", monto: "53.00", recibido: "60.00", vuelto: "7.00", anulado: false });
+    expect(cambio.body.pedido).toMatchObject({ pagado: true, totalPagado: "53.00" });
+    expect(cambio.body.turno).toMatchObject({
+      totalesPorMetodo: { YAPE: "0.00", EFECTIVO: "53.00" },
+      efectivoEsperado: "103.00",
+      vueltoEntregado: "7.00",
+      pagosAnulados: 0,
+    });
+
+    const registro = await prisma.pagoCambio.findMany({ where: { pagoId: pago.id } });
+    expect(registro).toHaveLength(1);
+    expect(registro[0]).toMatchObject({ tipo: "METODO", detalle: { antes: { metodo: "YAPE" }, despues: { metodo: "EFECTIVO", recibido: "60.00" } } });
+  });
+
+  it("anular pago: pide motivo, no borra nada, saca el pago de los totales y el pedido vuelve a deber", async () => {
+    await abrir(caja, 50);
+    const pedido = await pedidoDeMesa();
+    const pago = (await pagar(caja, pedido.id, { pagos: [{ metodo: "EFECTIVO", monto: 53, recibido: 100 }] })).body.pagos[0];
+    expect((await mesas())[0].estado).toBe("libre");
+
+    expect((await anular(caja, pedido.id, pago.id, {})).status).toBe(400);
+    expect((await anular(caja, pedido.id, pago.id, { motivo: "  " })).status).toBe(400);
+    expect((await anular(mozo, pedido.id, pago.id, { motivo: "Monto equivocado" })).status).toBe(403);
+
+    const res = await anular(caja, pedido.id, pago.id, { motivo: "Monto equivocado" });
+    expect(res.status).toBe(200);
+    expect(res.body.pago).toMatchObject({ anulado: true, motivoAnulacion: "Monto equivocado", anuladoPor: { nombre: "cocina" } });
+    expect(res.body.pedido).toMatchObject({ pagado: false, pagadoEn: null, totalPagado: "0.00", saldoPendiente: "53.00", mesaLiberada: false });
+    expect(res.body.turno).toMatchObject({
+      totalesPorMetodo: { EFECTIVO: "0.00" },
+      totalCobrado: "0.00",
+      efectivoEsperado: "50.00",
+      vueltoEntregado: "0.00",
+      pedidosCobrados: 0,
+      pagosAnulados: 1,
+    });
+
+    // Sigue en la base y en la cuenta, marcado; la mesa vuelve a estar ocupada por ese pedido
+    expect(await prisma.pago.count({ where: { pedidoId: pedido.id } })).toBe(1);
+    const laCuenta = (await cuenta(caja, pedido.id)).body.cuenta;
+    expect(laCuenta).toMatchObject({ totalPagado: "0.00", saldoPendiente: "53.00", pagado: false });
+    expect(laCuenta.pagos[0]).toMatchObject({ anulado: true, corregible: false });
+    expect((await mesas())[0]).toMatchObject({ estado: "ocupada", pedido: { id: pedido.id } });
+    expect((await request(app).get(`/api/pedidos/${pedido.id}/nota-venta`).set(conToken(caja))).body.texto).toContain("Pago: pendiente");
+
+    expect((await anular(caja, pedido.id, pago.id, { motivo: "Otra vez" })).body.error.codigo).toBe("PAGO_ANULADO");
+    expect((await cobrados(caja)).body.cobrados[0].pagos[0]).toMatchObject({ anulado: true, motivoAnulacion: "Monto equivocado" });
+    expect(await prisma.pagoCambio.count({ where: { pagoId: pago.id, tipo: "ANULACION" } })).toBe(1);
+
+    // Se puede volver a cobrar, y ahora sí cuenta
+    const otraVez = await pagar(caja, pedido.id, { pagos: [{ metodo: "YAPE", monto: 53 }] });
+    expect(otraVez.body.pedido.pagado).toBe(true);
+    expect((await actual(caja)).body.turno).toMatchObject({ totalCobrado: "53.00", pagosAnulados: 1 });
+  });
+
+  it("si la mesa ya tiene otro pedido, el anulado vuelve a por cobrar sin ocuparla", async () => {
+    await abrir(caja);
+    const viejo = await pedidoDeMesa();
+    const pago = (await pagar(caja, viejo.id, { pagos: [{ metodo: "YAPE", monto: 53 }] })).body.pagos[0];
+    const nuevo = await crearPedido(mozo, { mesaId: a.mesas[0].id, items: [{ varianteId: a.v.gaseosa }] });
+    expect(nuevo.status).toBe(201);
+
+    const res = await anular(caja, viejo.id, pago.id, { motivo: "Se cobró el pedido equivocado" });
+    expect(res.body.pedido).toMatchObject({ pagado: false, saldoPendiente: "53.00", mesaLiberada: true });
+
+    // La mesa sigue siendo del pedido nuevo, y el anulado figura entre los activos
+    expect((await mesas())[0]).toMatchObject({ estado: "ocupada", pedido: { id: nuevo.body.pedido.id } });
+    const activos = (await request(app).get("/api/pedidos/activos").set(conToken(caja))).body.pedidos as { id: string }[];
+    expect(activos.map((p) => p.id)).toEqual(expect.arrayContaining([viejo.id, nuevo.body.pedido.id]));
+    const tercero = await crearPedido(mozo, { mesaId: a.mesas[0].id, items: [{ varianteId: a.v.gaseosa }] });
+    expect(tercero.body.error).toMatchObject({ codigo: "MESA_OCUPADA", pedidoId: nuevo.body.pedido.id });
+  });
+
+  it("después de cerrar la caja no se corrige nada", async () => {
+    await abrir(caja);
+    const pedido = await pedidoDeMesa();
+    const pago = (await pagar(caja, pedido.id, { pagos: [{ metodo: "YAPE", monto: 53 }] })).body.pagos[0];
+    await cerrar(caja, { efectivoContado: 50 });
+
+    const sinCaja = await anular(caja, pedido.id, pago.id, { motivo: "Tarde" });
+    await abrir(caja);
+    const otroTurno = await cambiarMetodo(caja, pedido.id, pago.id, { metodo: "EFECTIVO" });
+    expect([sinCaja.body.error.codigo, otroTurno.body.error.codigo]).toEqual(["TURNO_CERRADO", "TURNO_CERRADO"]);
+    expect(await prisma.pago.count({ where: { id: pago.id, anuladoEn: null, metodo: "YAPE" } })).toBe(1);
+
+    // De otro negocio, ni se ve
+    const ajeno = await anular(await tokenDe(b, "cocina"), pedido.id, pago.id, { motivo: "No es mío" });
+    expect(ajeno.status).toBe(404);
+  });
+});
