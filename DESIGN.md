@@ -225,7 +225,8 @@ mayúsculas sostenidas ni con gris.
 
 - **Celular (`/mozo`)**: una columna con 16 px de margen, cabecera fija arriba
   y navegación fija abajo, al alcance del pulgar. El contenido reserva el alto
-  de la barra inferior más el área segura del dispositivo.
+  de la barra inferior más el área segura del dispositivo. Lo que se toca vive
+  en la mitad inferior; arriba solo se lee.
 - **Monitor (`/local`)**: ancho completo con 32 px de margen. Las pestañas
   viven dentro de la cabecera; por debajo de 1024 px bajan a una segunda fila
   de ancho completo.
@@ -297,9 +298,69 @@ Píldora de 36 px siempre visible en la cabecera. "En línea": fondo
 `listo-suave` con ícono de wifi. "Reconectando": fondo `alerta` con ícono
 giratorio.
 
-### Salir (local)
-Pide una segunda pulsación: el botón pasa a rojo con "¿Salir?" durante 4
-segundos. Un toque accidental no deja la cocina sin pantalla.
+### Segunda pulsación
+Lo destructivo pide una segunda pulsación: el botón pasa a rojo con la
+pregunta ("¿Salir?", "Sí, cancelar", "Sí, borrar") durante 4 segundos, sin
+cambiar de ancho. Un toque
+accidental no deja la cocina sin pantalla ni borra un plato. Lo usan Salir
+(local) y `BotonConfirmar` (cancelar un item, descartar un pedido de la cola).
+
+### Cabecera de pantalla (mozo)
+Las pantallas de una sola tarea (tomar pedido, resumen, mesa) cambian la marca
+por una flecha de volver de 48 px, el título (la mesa) y una segunda línea que
+dice en qué paso estás. No llevan navegación inferior: su borde de abajo es de
+la acción principal.
+
+### Baldosa de mesa
+Grilla de 2 columnas, 128 px de alto mínimo, siempre en el mismo orden. Cinco
+estados, cada uno con ícono y palabra:
+
+| Estado | Fondo y borde | Dice |
+|---|---|---|
+| Libre | `superficie`, `borde-fuerte` | "Libre" |
+| Ocupada | `primario-suave`, `marino` | total y "hace 25 min" |
+| Listo | `listo`, `tinta` de 3 px, campana rellena | "2 platos listos" |
+| Falta enviar | `superficie`, `marino` punteado | "Falta enviar · 3 platos" (le toca al mozo) |
+| Esperando conexión | `alerta-suave`, `alerta-fuerte` | "Esperando conexión" (le toca al celular) |
+
+El relleno lima completo se reserva para "listo": baldosa, tarjeta de pedido,
+banda del detalle, píldora y aviso.
+
+### Botón de producto
+Dos columnas, 112 px de alto mínimo: nombre en negrita (hasta 3 líneas) y
+precio. Un toque suma 1. Con unidades pasa a `primario-suave` con borde
+`primario-profundo`, muestra la cantidad en un disco `marino` y un "−" de 48 px.
+
+### Chips
+Píldoras de 48 px con borde de 2 px; la elegida es `marino` con texto blanco.
+Se usan para categorías (fila deslizable, sin barra) y notas rápidas (con un
+check al marcarlas). Una nota ya puesta se muestra como etiqueta `fondo` con
+borde, nunca en naranja.
+
+### Hoja inferior
+Para una decisión corta (variante, combo, notas, cola, mesa ocupada): un
+`<dialog>` modal anclado abajo, con título, botón de cerrar de 48 px, cuerpo
+desplazable y acciones fijas al pie. Sube en 280 ms con curva de cajón y baja
+en 180 ms; con movimiento reducido solo cambia la opacidad.
+
+### Barra de pedido
+Fija abajo con la sombra Barra: un solo botón de 64 px. En la carta dice
+cuántos platos, el total y "Ver pedido"; en el resumen, "Enviar a cocina".
+
+### Franja de cola
+Franja `alerta` bajo la cabecera, en todas las pantallas del mozo, mientras
+haya algo que no llegó a cocina: "1 pedido por enviar · Ver". No aparece en un
+envío normal, solo cuando ya falló una vez.
+
+### Píldora de estado
+32 px, ícono y palabra: Pendiente (`fondo`), Preparando (`alerta-suave`),
+Listo (`listo`), Entregado (`primario-suave`), Cancelado (`peligro-suave`).
+
+### Feedback
+Tres animaciones, todas de una sola vez: `pulso` (180 ms) en la cantidad que
+cambia, `llegada` (280 ms) cuando algo pasa a listo o cambia de estado, y la
+confirmación "Enviando a cocina" (450 ms en pantalla). Solo responden a algo
+que acaba de pasar: no se disparan al abrir una pantalla ni se repiten en bucle.
 
 ## Do's and Don'ts
 

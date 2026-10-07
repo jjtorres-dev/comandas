@@ -5,10 +5,12 @@ import { NavLink, Outlet } from "react-router";
 import { Cabecera } from "../componentes/Cabecera";
 import { useSesion } from "../sesion/contexto";
 
-const PESTANAS: { ruta: string; nombre: string; icono: Icon }[] = [
+// `escala` compensa los íconos cuyo dibujo ocupa menos de su caja: la moto es
+// ancha y baja, y sin esto se ve más chica que la olla y la caja.
+const PESTANAS: { ruta: string; nombre: string; icono: Icon; escala?: string }[] = [
   { ruta: "cocina", nombre: "Cocina", icono: CookingPotIcon },
   { ruta: "caja", nombre: "Caja", icono: CashRegisterIcon },
-  { ruta: "delivery", nombre: "Delivery", icono: MopedIcon },
+  { ruta: "delivery", nombre: "Delivery", icono: MopedIcon, escala: "scale-[1.2]" },
 ];
 
 // Cocina y caja: una sola persona frente a un monitor, a veces lejos de él.
@@ -19,12 +21,12 @@ export function LayoutLocal() {
       <Cabecera acciones={<Salir />}>
         <nav aria-label="Secciones">
           <ul className="grid grid-cols-3 gap-1 rounded-control bg-superficie p-1 lg:inline-grid lg:min-w-[34rem]">
-            {PESTANAS.map(({ ruta, nombre, icono: Icono }) => (
+            {PESTANAS.map(({ ruta, nombre, icono: Icono, escala = "" }) => (
               <li key={ruta}>
                 <NavLink
                   to={ruta}
                   className={({ isActive }) =>
-                    `presionable relative flex min-h-12 items-center justify-center gap-2 rounded-[0.625rem] px-3 text-lg font-bold lg:min-h-14 lg:text-2xl ${
+                    `presionable relative flex min-h-12 items-center justify-center gap-2 rounded-interior px-3 text-lg font-bold lg:min-h-14 lg:text-2xl ${
                       isActive ? "text-white" : "text-marino hover:bg-primario-suave"
                     }`
                   }
@@ -34,11 +36,11 @@ export function LayoutLocal() {
                       {isActive && (
                         <motion.span
                           layoutId="pestana-activa"
-                          className="absolute inset-0 rounded-[0.625rem] bg-marino"
+                          className="absolute inset-0 rounded-interior bg-marino"
                           transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
                         />
                       )}
-                      <Icono aria-hidden="true" weight={isActive ? "fill" : "regular"} className="relative size-6 lg:size-8" />
+                      <Icono aria-hidden="true" weight={isActive ? "fill" : "regular"} className={`relative size-6 lg:size-8 ${escala}`} />
                       <span className="relative">{nombre}</span>
                     </>
                   )}

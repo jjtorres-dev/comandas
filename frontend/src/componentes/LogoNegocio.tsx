@@ -6,6 +6,8 @@ type Props = {
   logoUrl: string | null;
   // Clases de tamaño del plato, p. ej. "size-11"
   className?: string;
+  // El logo llena el plato casi hasta el borde (login); por defecto deja margen
+  amplio?: boolean;
 };
 
 // Iniciales para cuando el negocio no tiene logo o la imagen no carga
@@ -16,7 +18,7 @@ function iniciales(nombre: string): string {
 
 // El logo viene de la API y puede tener cualquier forma y color: se sirve
 // siempre sobre un plato blanco para que se lea sobre el turquesa.
-export function LogoNegocio({ nombre, logoUrl, className = "size-11" }: Props) {
+export function LogoNegocio({ nombre, logoUrl, className = "size-11", amplio = false }: Props) {
   const [fallo, setFallo] = useState<string | null>(null);
   const mostrarImagen = logoUrl !== null && fallo !== logoUrl;
 
@@ -29,7 +31,7 @@ export function LogoNegocio({ nombre, logoUrl, className = "size-11" }: Props) {
         <img
           src={urlDeArchivo(logoUrl)}
           alt={`Logo de ${nombre}`}
-          className="size-[88%] object-contain"
+          className={`object-contain ${amplio ? "size-full" : "size-[88%]"}`}
           onError={() => setFallo(logoUrl)}
         />
       ) : (

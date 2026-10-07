@@ -21,10 +21,13 @@ createRoot(document.getElementById("root")!).render(
         </BrowserRouter>
         <Toaster
           position="top-center"
+          mobileOffset={{ top: 76 }}
           toastOptions={{
             classNames: {
-              toast: "!rounded-control !border-2 !border-borde !bg-superficie !font-sans !text-lg !font-bold !text-tinta",
+              toast: "!rounded-control !border-2 !border-borde !font-sans !text-lg !font-bold !text-tinta",
               error: "!border-peligro !text-peligro",
+              // El botón del aviso ("Ver", "Deshacer") se acierta con el pulgar
+              actionButton: "!h-12 !rounded-interior !bg-marino !px-4 !text-lg !font-bold !text-white",
             },
           }}
         />

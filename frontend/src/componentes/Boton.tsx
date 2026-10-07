@@ -2,7 +2,7 @@ import { CircleNotchIcon } from "@phosphor-icons/react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
-  variante?: "primario" | "peligro" | "texto";
+  variante?: "primario" | "secundario" | "peligro" | "texto";
   // Muestra un indicador y bloquea el botón mientras dura la acción
   ocupado?: boolean;
   icono?: ReactNode;
@@ -13,6 +13,7 @@ const BASE =
 
 const VARIANTES = {
   primario: "bg-primario text-tinta hover:bg-primario-presionado disabled:opacity-60",
+  secundario: "border-2 border-marino bg-superficie text-marino hover:bg-primario-suave disabled:opacity-60",
   peligro: "border-2 border-peligro bg-superficie text-peligro hover:bg-peligro-suave disabled:opacity-60",
   texto: "min-h-12 text-lg text-marino underline decoration-2 underline-offset-4 hover:bg-primario-suave disabled:opacity-60",
 };

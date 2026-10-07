@@ -43,6 +43,7 @@
   --color-borde: #c5d3dc;
   --color-borde-fuerte: #7c8fa6;
 
+  --radius-interior: 0.625rem;
   --radius-control: 0.875rem;
   --radius-panel: 1.25rem;
 
@@ -50,6 +51,24 @@
   --shadow-barra: 0 -4px 16px -8px rgb(14 39 72 / 0.25);
 
   --ease-salida: cubic-bezier(0.23, 1, 0.32, 1);
+  /* Curva de cajón: arranca rápido y frena largo */
+  --ease-cajon: cubic-bezier(0.32, 0.72, 0, 1);
+
+  /* Feedback de una sola vez: cantidad que cambia, estado que llega */
+  --animate-pulso: pulso 180ms var(--ease-salida);
+  --animate-llegada: llegada 280ms var(--ease-salida);
+
+  @keyframes pulso {
+    from {
+      transform: scale(1.25);
+    }
+  }
+  @keyframes llegada {
+    from {
+      transform: scale(0.94);
+      opacity: 0.4;
+    }
+  }
 }
 
 @layer base {
@@ -96,6 +115,69 @@
   .presionable:active:not(:disabled) {
     transform: scale(0.97);
   }
+
+  /* Fila que se desliza con el dedo, sin barra a la vista */
+  .sin-barra {
+    scrollbar-width: none;
+  }
+  .sin-barra::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Hoja inferior: un <dialog> modal que sube desde el borde de abajo, al
+     alcance del pulgar. Sale más rápido de lo que entra. */
+  .hoja {
+    position: fixed;
+    inset: auto 0 0 0;
+    width: 100%;
+    max-width: 42rem;
+    max-height: 88dvh;
+    margin: 0 auto;
+    padding: 0;
+    overflow: hidden;
+    border: 0;
+    border-radius: var(--radius-panel) var(--radius-panel) 0 0;
+    background: var(--color-superficie);
+    color: var(--color-marino);
+    overscroll-behavior: contain;
+    transform: translateY(100%);
+    transition:
+      transform 180ms var(--ease-salida),
+      overlay 180ms allow-discrete,
+      display 180ms allow-discrete;
+  }
+  .hoja[open] {
+    display: flex;
+    flex-direction: column;
+    transform: translateY(0);
+    transition-duration: 280ms;
+    transition-timing-function: var(--ease-cajon);
+  }
+  @starting-style {
+    .hoja[open] {
+      transform: translateY(100%);
+    }
+  }
+  .hoja::backdrop {
+    background-color: rgb(14 39 72 / 0);
+    transition:
+      background-color 180ms ease,
+      overlay 180ms allow-discrete,
+      display 180ms allow-discrete;
+  }
+  .hoja[open]::backdrop {
+    background-color: rgb(14 39 72 / 0.55);
+  }
+  @starting-style {
+    .hoja[open]::backdrop {
+      background-color: rgb(14 39 72 / 0);
+    }
+  }
+}
+
+/* Con una hoja abierta, el contenido de atrás no se desplaza */
+html:has(dialog.hoja[open]) {
+  overflow: hidden;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -104,5 +186,29 @@
   }
   .animate-spin {
     animation-duration: 2.4s;
+  }
+  .animate-pulso,
+  .animate-llegada {
+    animation: none;
+  }
+  /* La hoja aparece y desaparece con opacidad, sin desplazarse */
+  .hoja,
+  .hoja[open] {
+    transform: none;
+    transition:
+      opacity 150ms ease,
+      overlay 150ms allow-discrete,
+      display 150ms allow-discrete;
+  }
+  .hoja {
+    opacity: 0;
+  }
+  .hoja[open] {
+    opacity: 1;
+  }
+  @starting-style {
+    .hoja[open] {
+      opacity: 0;
+    }
   }
 }

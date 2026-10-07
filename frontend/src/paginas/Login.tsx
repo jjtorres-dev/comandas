@@ -57,7 +57,7 @@ export function Login() {
         {codigoNegocio ? (
           <>
             {nombre ? (
-              <LogoNegocio nombre={nombre} logoUrl={negocio.data?.logoUrl ?? null} className="size-40 sm:size-48" />
+              <LogoNegocio nombre={nombre} logoUrl={negocio.data?.logoUrl ?? null} className="size-40 sm:size-48" amplio />
             ) : (
               <span className="size-40 animate-pulse rounded-full bg-superficie/60 sm:size-48" />
             )}
@@ -137,7 +137,7 @@ function PasoNegocio({ aviso, alEncontrar }: { aviso: string | null; alEncontrar
         ayuda="Te lo da el dueño del local. Se pide solo una vez en este equipo."
         name="codigoNegocio"
         value={codigo}
-        onChange={(e) => setCodigo(e.target.value)}
+        onChange={(e) => setCodigo(e.target.value.toLowerCase())}
         error={error}
         autoFocus
         autoCapitalize="none"
@@ -224,7 +224,7 @@ function PasoUsuario({
             onClick={() => setVerPassword((v) => !v)}
             aria-label={verPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
             aria-pressed={verPassword}
-            className="presionable grid size-12 cursor-pointer place-items-center rounded-[0.625rem] text-marino hover:bg-primario-suave"
+            className="presionable grid size-12 cursor-pointer place-items-center rounded-interior text-marino hover:bg-primario-suave"
           >
             <IconoVer aria-hidden="true" weight="bold" className="size-6" />
           </button>

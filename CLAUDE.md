@@ -17,7 +17,8 @@ inicio. Primer cliente: "Cevichería Valentina" (Tarapoto, Perú).
 - `.agents/` y `.claude/skills/`: skills de diseño, versionadas.
 
 Cada paquete tiene su propio `package.json` y su propio `node_modules`; no hay
-workspace de npm en la raíz.
+workspace de npm en la raíz. El `package.json` de la raíz solo trae atajos
+(`concurrently`).
 
 ## Cómo levantar todo
 
@@ -27,6 +28,9 @@ workspace de npm en la raíz.
    (puerto 3000).
 3. Frontend, desde `frontend/`: copiar `.env.example` a `.env` la primera vez,
    `npm install` y `npm run dev` (puerto 5173, accesible desde la red local).
+
+Con todo instalado y migrado, `npm run dev` desde la raíz (tras un `npm install`
+ahí) levanta la base de datos, el backend y el frontend en una sola terminal.
 
 Login de desarrollo: código `valentina`, usuarios `admin/admin123`,
 `mozo/mozo123` y `cocina/cocina123`.
@@ -46,7 +50,7 @@ Después, seguir `DESIGN.md`: los tokens están en `frontend/src/estilos.css`
 - Stack: Vite, React, TypeScript, Tailwind CSS v4, React Router, TanStack Query,
   socket.io-client, motion, sonner y vite-plugin-pwa. Íconos de Phosphor.
 - Comandos, desde `frontend/`: `npm run dev`, `npm run build` (incluye
-  `tsc -b`) y `npm run lint` (oxlint).
+  `tsc -b`), `npm run lint` (oxlint) y `npm run e2e` (Playwright).
 - `VITE_API_URL` vacío significa mismo origen: en desarrollo Vite reenvía
   `/api`, `/uploads` y `/socket.io` al backend (`PROXY_BACKEND`), así que desde
   el celular basta con abrir `http://<ip-de-la-pc>:5173`.
@@ -59,6 +63,18 @@ Después, seguir `DESIGN.md`: los tokens están en `frontend/src/estilos.css`
 - El nombre y el logo del negocio salen siempre de la API (`LogoNegocio`); en el
   dispositivo solo se guardan el token y el código del negocio.
 - Rutas: `/login`, `/mozo/*` (MOZO y ADMIN) y `/local/*` (LOCAL y ADMIN).
+- App del mozo: pestañas `/mozo/mesas`, `/mozo/pedidos` y `/mozo/perfil`, y
+  pantallas de una tarea `/mozo/tomar/:clave` (`mesa-<id>`, `llevar` o
+  `pedido-<id>`), su `/resumen` y `/mozo/pedido/:id`.
+- `src/mozo/almacen.ts` guarda en el dispositivo, por usuario, los borradores
+  (sin enviar) y la cola (enviados sin confirmar). "Enviar a cocina" nunca
+  espera al servidor: encola con su `idCliente` o `idRonda` definitivo y
+  `procesarCola` reintenta sola. Toda creación de pedidos o rondas del mozo
+  pasa por ahí; las líneas se editan con las funciones puras de
+  `src/mozo/lineas.ts` (las iguales se unen solas).
+- Prueba de punta a punta: `npm run e2e` desde `frontend/` (Playwright, 412×915)
+  contra el entorno de desarrollo con el seed. Usa una mesa libre y la libera
+  al terminar.
 - La PWA se llama "Comandas" y sus íconos son genéricos (`frontend/public/`).
 
 ## Convenciones

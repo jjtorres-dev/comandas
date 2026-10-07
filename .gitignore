@@ -17,3 +17,7 @@ backend/src/generated/
 # Registros y archivos del sistema
 *.log
 .DS_Store
+
+# Playwright
+test-results/
+playwright-report/

@@ -1,11 +1,23 @@
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
-import { defineConfig, loadEnv } from "vite";
+import { createLogger, defineConfig, loadEnv } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
 // Rutas que atiende el backend. En desarrollo Vite las reenvía, así el celular
 // solo necesita llegar al puerto 5173 y no hay CORS de por medio.
 const RUTAS_BACKEND = ["/api", "/uploads"];
+
+// Cuando el navegador cierra un socket (logout, recarga), el proxy de WebSocket
+// ve un ECONNRESET o EPIPE y Vite lo registra como error. Es un cierre normal:
+// se calla solo eso, y cualquier otro error del proxy se sigue viendo.
+const CIERRES_NORMALES = new Set(["ECONNRESET", "EPIPE"]);
+const registro = createLogger();
+const registrarError = registro.error;
+registro.error = (mensaje, opciones) => {
+  const codigo = (opciones?.error as NodeJS.ErrnoException | null | undefined)?.code;
+  if (mensaje.includes("ws proxy") && codigo && CIERRES_NORMALES.has(codigo)) return;
+  registrarError(mensaje, opciones);
+};
 
 export default defineConfig(({ mode }) => {
   const entorno = loadEnv(mode, process.cwd(), "");
@@ -17,6 +29,7 @@ export default defineConfig(({ mode }) => {
   };
 
   return {
+    customLogger: registro,
     plugins: [
       react(),
       tailwindcss(),

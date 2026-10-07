@@ -23,7 +23,10 @@ const guardar = (clave: string, valor: string | null) => {
   }
 };
 
-let estado: Estado = { token: leer(CLAVE_TOKEN), codigoNegocio: leer(CLAVE_NEGOCIO) };
+// El código del negocio se guarda siempre en minúsculas
+const normalizar = (codigo: string | null) => codigo?.trim().toLowerCase() || null;
+
+let estado: Estado = { token: leer(CLAVE_TOKEN), codigoNegocio: normalizar(leer(CLAVE_NEGOCIO)) };
 const oyentes = new Set<() => void>();
 
 function cambiar(parcial: Partial<Estado>) {
@@ -41,7 +44,8 @@ export const almacen = {
     guardar(CLAVE_TOKEN, token);
     cambiar({ token });
   },
-  fijarNegocio(codigoNegocio: string | null) {
+  fijarNegocio(codigo: string | null) {
+    const codigoNegocio = normalizar(codigo);
     guardar(CLAVE_NEGOCIO, codigoNegocio);
     cambiar({ codigoNegocio });
   },
