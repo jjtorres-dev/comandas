@@ -138,6 +138,10 @@ model Producto {
 
   // Combos: "Dúo marino" = el cliente elige `comboCantidad` platos
   // de la lista de opciones elegibles
+  // Tapers que ocupa una unidad al despacharla (delivery / para llevar):
+  // 0 = bebidas, 1 = un plato, 2 o 3 = combos
+  tapers Int @default(1)
+
   esCombo       Boolean @default(false)
   comboCantidad Int? // 2 = doble, 3 = triple (solo si esCombo)
 
@@ -255,6 +259,8 @@ model Pedido {
 
   // Tapers: aplica a DELIVERY y PARA_LLEVAR
   cantidadTapers Int     @default(0)
+  // true si alguien fijó la cantidad a mano: ya no se recalcula con los items
+  tapersManual   Boolean @default(false)
   cargoTapers    Decimal @default(0) @db.Decimal(10, 2)
 
   // total = subtotal + costoEnvio + cargoTapers - descuento

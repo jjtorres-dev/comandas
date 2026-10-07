@@ -12,6 +12,7 @@ import {
   obtenerCompleto,
   publicar,
   recalcular,
+  recalcularTapers,
   serializar,
   type PedidoSerializado,
 } from "./pedidos.core";
@@ -24,8 +25,6 @@ import type {
 } from "./pedidos.schemas";
 
 const VARIANTE_UNICA = "Única";
-// Los platos de esta área se despachan en taper; las bebidas no
-const AREA_CON_TAPER = "cocina";
 
 // ---------- REGLAS ----------
 
@@ -41,7 +40,6 @@ async function prepararItems(tx: Tx, negocioId: string, items: ItemEntrada[]) {
     include: {
       producto: {
         include: {
-          area: { select: { nombre: true } },
           opcionesCombo: {
             where: { producto: { negocioId, activo: true } },
             include: { producto: { select: { id: true, nombre: true } } },
@@ -59,8 +57,7 @@ async function prepararItems(tx: Tx, negocioId: string, items: ItemEntrada[]) {
     });
   }
 
-  let tapers = 0;
-  const filas = items.map((item) => {
+  return items.map((item) => {
     const variante = variantePorId.get(item.varianteId)!;
     const { producto } = variante;
     const elegidos = item.componentes ?? [];
@@ -86,8 +83,6 @@ async function prepararItems(tx: Tx, negocioId: string, items: ItemEntrada[]) {
       throw solicitudInvalida(`"${producto.nombre}" no es un combo y no admite componentes`);
     }
 
-    if (producto.area.nombre.trim().toLowerCase() === AREA_CON_TAPER) tapers += item.cantidad;
-
     return {
       varianteId: variante.id,
       areaId: producto.areaId,
@@ -99,9 +94,6 @@ async function prepararItems(tx: Tx, negocioId: string, items: ItemEntrada[]) {
       componentes,
     };
   });
-
-  // tapers: sugerencia para delivery y para llevar (uno por plato de cocina)
-  return { filas, tapers };
 }
 
 // Agrega una ronda al final de la comanda, respetando el orden en que llegó
@@ -109,7 +101,7 @@ async function insertarRonda(
   tx: Tx,
   pedidoId: string,
   idRonda: string,
-  filas: Awaited<ReturnType<typeof prepararItems>>["filas"],
+  filas: Awaited<ReturnType<typeof prepararItems>>,
 ) {
   const ultimo = await tx.pedidoItem.aggregate({ where: { pedidoId }, _max: { orden: true } });
   const base = ultimo._max.orden ?? 0;
@@ -123,7 +115,6 @@ async function prepararEntrega(
   tx: Tx,
   negocio: { id: string; costoEnvioDefault: Prisma.Decimal; precioTaper: Prisma.Decimal },
   datos: DatosCrearPedido,
-  tapersSugeridos: number,
 ) {
   if (datos.tipo === TipoPedido.MESA) return {};
 
@@ -141,7 +132,15 @@ async function prepararEntrega(
     });
   }
 
-  const cantidadTapers = datos.cantidadTapers ?? tapersSugeridos;
+  // Si la cantidad viene en el pedido queda fija; si no, se calcula con los items
+  const tapers =
+    datos.cantidadTapers === undefined
+      ? {}
+      : {
+          tapersManual: true,
+          cantidadTapers: datos.cantidadTapers,
+          cargoTapers: negocio.precioTaper.times(datos.cantidadTapers),
+        };
 
   return {
     clienteId: cliente?.id ?? null,
@@ -151,8 +150,7 @@ async function prepararEntrega(
     direccionEntrega: esDelivery ? direccion : null,
     referenciaEntrega: esDelivery ? (referencia ?? null) : null,
     costoEnvio: esDelivery ? (datos.costoEnvio ?? negocio.costoEnvioDefault) : CERO,
-    cantidadTapers,
-    cargoTapers: negocio.precioTaper.times(cantidadTapers),
+    ...tapers,
   };
 }
 
@@ -196,8 +194,8 @@ export async function crearPedido(
       }
     }
 
-    const { filas, tapers } = await prepararItems(tx, negocioId, datos.items);
-    const entrega = await prepararEntrega(tx, negocio, datos, tapers);
+    const filas = await prepararItems(tx, negocioId, datos.items);
+    const entrega = await prepararEntrega(tx, negocio, datos);
 
     // Correlativo diario: reinicia a medianoche de America/Lima
     const ultimo = await tx.pedido.aggregate({
@@ -219,6 +217,7 @@ export async function crearPedido(
     });
     // La primera ronda se identifica con el idCliente del pedido
     await insertarRonda(tx, pedido.id, datos.idCliente, filas);
+    await recalcularTapers(tx, pedido.id);
     await recalcular(tx, pedido.id);
 
     return { pedido: await obtenerCompleto(tx, pedido.id), creado: true };
@@ -248,8 +247,9 @@ export async function agregarItems(
     exigirNoCancelado(pedido);
     if (pedido.pagado) throw conflicto("PEDIDO_PAGADO", "El pedido ya está pagado. Crea un pedido nuevo");
 
-    const { filas } = await prepararItems(tx, negocioId, datos.items);
+    const filas = await prepararItems(tx, negocioId, datos.items);
     await insertarRonda(tx, pedidoId, datos.idRonda, filas);
+    await recalcularTapers(tx, pedidoId);
     await recalcular(tx, pedidoId);
 
     return { pedido: await obtenerCompleto(tx, pedidoId), creado: true };
@@ -331,6 +331,7 @@ export async function cancelarItem(sesion: Sesion, pedidoId: string, itemId: str
     }
 
     await tx.pedidoItem.update({ where: { id: itemId }, data: { estado: EstadoItem.CANCELADO } });
+    await recalcularTapers(tx, pedidoId);
     await recalcular(tx, pedidoId);
     return obtenerCompleto(tx, pedidoId);
   });
@@ -353,21 +354,30 @@ export async function actualizarCargos(sesion: Sesion, pedidoId: string, datos: 
       throw solicitudInvalida("Los pedidos de mesa no llevan tapers");
     }
 
-    const negocio = await tx.negocio.findUniqueOrThrow({ where: { id: sesion.negocioId } });
-    const costoEnvio = datos.costoEnvio ?? pedido.costoEnvio;
-    const cantidadTapers = datos.cantidadTapers ?? pedido.cantidadTapers;
-    const cargoTapers =
-      datos.cantidadTapers === undefined ? pedido.cargoTapers : negocio.precioTaper.times(cantidadTapers);
-    const descuento = datos.descuento ?? pedido.descuento;
-
-    if (descuento.greaterThan(pedido.subtotal.plus(costoEnvio).plus(cargoTapers))) {
-      throw solicitudInvalida("El descuento no puede ser mayor que el total del pedido");
+    // Tapers: un número fija la cantidad a mano; null vuelve al cálculo automático
+    let tapers = {};
+    if (datos.cantidadTapers === null) {
+      tapers = { tapersManual: false };
+    } else if (datos.cantidadTapers !== undefined) {
+      const negocio = await tx.negocio.findUniqueOrThrow({ where: { id: sesion.negocioId } });
+      tapers = {
+        tapersManual: true,
+        cantidadTapers: datos.cantidadTapers,
+        cargoTapers: negocio.precioTaper.times(datos.cantidadTapers),
+      };
     }
 
     await tx.pedido.update({
       where: { id: pedidoId },
-      data: { costoEnvio, cantidadTapers, cargoTapers, descuento },
+      data: { costoEnvio: datos.costoEnvio, descuento: datos.descuento, ...tapers },
     });
+    await recalcularTapers(tx, pedidoId);
+
+    const nuevo = await tx.pedido.findUniqueOrThrow({ where: { id: pedidoId } });
+    if (nuevo.descuento.greaterThan(nuevo.subtotal.plus(nuevo.costoEnvio).plus(nuevo.cargoTapers))) {
+      throw solicitudInvalida("El descuento no puede ser mayor que el total del pedido");
+    }
+
     await recalcular(tx, pedidoId);
     return obtenerCompleto(tx, pedidoId);
   });

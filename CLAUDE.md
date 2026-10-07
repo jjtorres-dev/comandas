@@ -63,6 +63,11 @@ inicio. Primer cliente: "Cevichería Valentina" (Tarapoto, Perú).
   LOCAL y ADMIN.
 - CORS: `FRONTEND_URL` y, solo con `NODE_ENV=development`, orígenes `192.168.x.x`
   (`src/config/cors.ts`, compartido con Socket.IO).
+- `TRUST_PROXY` configura "trust proxy" de Express: vacío en desarrollo, `1` en
+  Railway. Sin él, el límite de login vería a todos con la IP del proxy.
+- `docs/API.md` documenta todos los endpoints y eventos; es la referencia para el
+  frontend. **Actualizarlo en el mismo cambio** cuando se toque una ruta, un body,
+  una respuesta o un código de error.
 - Todo lo que modifica un pedido usa `src/modules/pedidos/pedidos.core.ts`:
   bloquear la fila (`bloquearPedido`), llamar a `recalcular` al final (totales,
   estado y si quedó pagado) y `publicar` después del commit.
@@ -76,8 +81,12 @@ inicio. Primer cliente: "Cevichería Valentina" (Tarapoto, Perú).
   se emiten a la sala `negocio:<id>` después de confirmar la transacción.
 - Delivery y para llevar: el teléfono se guarda normalizado (solo dígitos, sin el
   51). Con teléfono se hace upsert de `Cliente`; nombre, teléfono, dirección y
-  referencia se copian al pedido. Los tapers por defecto son uno por plato del
-  área llamada "Cocina" (constante `AREA_CON_TAPER` en `pedidos.service.ts`).
+  referencia se copian al pedido.
+- Tapers: `Producto.tapers` dice cuántos ocupa una unidad (bebidas 0, combos 2 o 3,
+  el resto 1). La cantidad del pedido es la suma de `cantidad × tapers` de los
+  items no cancelados y se recalcula (`recalcularTapers`) al crear, agregar una
+  ronda o cancelar un item, salvo que `Pedido.tapersManual` sea true (cantidad
+  fijada al crear o con `/cargos`; `cantidadTapers: null` en `/cargos` la libera).
 - Caja: un solo turno abierto por negocio. `Pago.monto` es neto de vuelto
   (`recibido - monto` = vuelto), así que efectivo esperado = monto inicial +
   efectivo cobrado. Un pedido queda pagado cuando lo cobrado iguala el total; eso

@@ -37,7 +37,7 @@ export async function crearNegocio(nombre: string, codigo: string) {
     nombreProducto: string,
     areaId: string,
     variantes: [string, number][],
-    comboCantidad?: number,
+    extra: { comboCantidad?: number; tapers?: number } = {},
   ) =>
     prisma.producto.create({
       data: {
@@ -46,8 +46,9 @@ export async function crearNegocio(nombre: string, codigo: string) {
         areaId,
         nombre: nombreProducto,
         orden: ++orden,
-        esCombo: comboCantidad !== undefined,
-        comboCantidad,
+        esCombo: extra.comboCantidad !== undefined,
+        comboCantidad: extra.comboCantidad,
+        tapers: extra.tapers, // sin valor: 1, el default del schema
         variantes: { create: variantes.map(([n, precio], i) => ({ nombre: n, precio, orden: i })) },
       },
       include: { variantes: { orderBy: { orden: "asc" } } },
@@ -57,8 +58,8 @@ export async function crearNegocio(nombre: string, codigo: string) {
   const leche = await producto("Leche de Tigre", cocina.id, [["Única", 12]]);
   const arroz = await producto("Arroz con Mariscos", cocina.id, [["Única", 22]]);
   const pota = await producto("Chicharrón de Pota", cocina.id, [["S/ 10", 10], ["S/ 18", 18]]);
-  const gaseosa = await producto("Gaseosa Personal", bebidas.id, [["Única", 3]]);
-  const combo = await producto("Combo Doble", cocina.id, [["Única", 25]], 2);
+  const gaseosa = await producto("Gaseosa Personal", bebidas.id, [["Única", 3]], { tapers: 0 });
+  const combo = await producto("Combo Doble", cocina.id, [["Única", 25]], { comboCantidad: 2, tapers: 2 });
 
   // El arroz queda fuera de las opciones del combo a propósito
   await prisma.comboOpcion.createMany({

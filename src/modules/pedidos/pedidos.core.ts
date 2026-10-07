@@ -1,7 +1,7 @@
 // Piezas compartidas por todo lo que modifica un pedido (pedidos, pagos):
 // cómo se carga, cómo se bloquea, cómo se recalcula y cómo viaja en el JSON.
 
-import { EstadoItem, EstadoPedido, Prisma } from "../../generated/prisma/client";
+import { EstadoItem, EstadoPedido, Prisma, TipoPedido } from "../../generated/prisma/client";
 import { CERO, dinero, sumar } from "../../lib/dinero";
 import { conflicto, noEncontrado, sinPermiso } from "../../lib/errores";
 import type { Tx } from "../../lib/prisma";
@@ -38,6 +38,7 @@ export function serializar(p: PedidoCompleto) {
     subtotal: dinero(p.subtotal),
     costoEnvio: dinero(p.costoEnvio),
     cantidadTapers: p.cantidadTapers,
+    tapersManual: p.tapersManual,
     cargoTapers: dinero(p.cargoTapers),
     descuento: dinero(p.descuento),
     total: dinero(p.total),
@@ -113,6 +114,31 @@ export function calcularEstadoPedido(actual: EstadoPedido, items: EstadoItem[]):
   }
   // Mezcla de pendientes con items ya listos o entregados (p. ej. una ronda nueva)
   return EstadoPedido.PREPARANDO;
+}
+
+// Tapers automáticos de DELIVERY y PARA_LLEVAR: suma de cantidad × Producto.tapers
+// de los items no cancelados. No hace nada en MESA ni si alguien fijó la cantidad
+// a mano (tapersManual). Llamar cuando cambian los items, antes de `recalcular`.
+export async function recalcularTapers(tx: Tx, pedidoId: string) {
+  const pedido = await tx.pedido.findUniqueOrThrow({
+    where: { id: pedidoId },
+    select: {
+      tipo: true,
+      tapersManual: true,
+      negocio: { select: { precioTaper: true } },
+      items: {
+        where: { estado: { not: EstadoItem.CANCELADO } },
+        select: { cantidad: true, variante: { select: { producto: { select: { tapers: true } } } } },
+      },
+    },
+  });
+  if (pedido.tipo === TipoPedido.MESA || pedido.tapersManual) return;
+
+  const cantidadTapers = pedido.items.reduce((suma, i) => suma + i.cantidad * i.variante.producto.tapers, 0);
+  await tx.pedido.update({
+    where: { id: pedidoId },
+    data: { cantidadTapers, cargoTapers: pedido.negocio.precioTaper.times(cantidadTapers) },
+  });
 }
 
 // Recalcula totales, estado y si quedó pagado. Se llama al final de todo cambio.

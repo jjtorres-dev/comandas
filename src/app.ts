@@ -2,6 +2,7 @@ import cors from "cors";
 import express from "express";
 import { z } from "zod";
 import { opcionesCors } from "./config/cors";
+import { env } from "./config/env";
 import { manejarErrores, rutaNoEncontrada } from "./middlewares/errores";
 import { rutasAuth } from "./modules/auth/auth.routes";
 import { rutasCaja } from "./modules/caja/caja.routes";
@@ -18,6 +19,8 @@ z.config(z.locales.es());
 export const app = express();
 
 app.disable("x-powered-by");
+// Detrás de un proxy (Railway), req.ip debe ser la del cliente y no la del proxy
+if (env.TRUST_PROXY !== undefined) app.set("trust proxy", env.TRUST_PROXY);
 app.use(cors(opcionesCors));
 app.use(express.json({ limit: "100kb" }));
 

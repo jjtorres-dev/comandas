@@ -270,9 +270,9 @@ describe("GET /api/pedidos/:id/nota-venta", () => {
         { varianteId: a.v.gaseosa },
       ],
     });
-    // 40 + 25 + 3 = 68; envío 3; 3 tapers = 3; total 74
+    // 40 + 25 + 3 = 68; envío 3; 4 tapers (2 ceviches + combo doble) = 4; total 75
     await prisma.pedido.update({ where: { id: body.pedido.id }, data: { creadoEn: new Date("2026-10-08T01:30:00Z") } });
-    await pagar(caja, body.pedido.id, { pagos: [{ metodo: "YAPE", monto: 50 }, { metodo: "EFECTIVO", monto: 24, recibido: 30 }] });
+    await pagar(caja, body.pedido.id, { pagos: [{ metodo: "YAPE", monto: 50 }, { metodo: "EFECTIVO", monto: 25, recibido: 30 }] });
 
     const res = await request(app).get(`/api/pedidos/${body.pedido.id}/nota-venta`).set(conToken(mozo));
 
@@ -292,10 +292,10 @@ describe("GET /api/pedidos/:id/nota-venta", () => {
         "",
         "Subtotal: S/ 68.00",
         "Envío: S/ 3.00",
-        "Tapers (3): S/ 3.00",
-        "*TOTAL: S/ 74.00*",
+        "Tapers (4): S/ 4.00",
+        "*TOTAL: S/ 75.00*",
         "",
-        "Pago: Yape S/ 50.00 + Efectivo S/ 24.00",
+        "Pago: Yape S/ 50.00 + Efectivo S/ 25.00",
         "",
         "No es comprobante electrónico",
         "¡Gracias por su preferencia!",

@@ -46,7 +46,8 @@ export const esquemaCrearPedido = z
     cliente: esquemaCliente.optional(),
     // Solo DELIVERY. Si falta se usa Negocio.costoEnvioDefault
     costoEnvio: esquemaCostoEnvio.optional(),
-    // DELIVERY y PARA_LLEVAR. Si falta se cuenta un taper por plato de cocina
+    // DELIVERY y PARA_LLEVAR. Si falta se calcula con los items (cantidad × Producto.tapers)
+    // y se recalcula sola; si viene, queda fija (tapersManual)
     cantidadTapers: esquemaTapers.optional(),
   })
   .superRefine((datos, ctx) => {
@@ -86,7 +87,8 @@ export const esquemaCambiarEstado = z
 export const esquemaCargos = z
   .object({
     costoEnvio: esquemaCostoEnvio.optional(),
-    cantidadTapers: esquemaTapers.optional(),
+    // Un número fija la cantidad (tapersManual); null vuelve al cálculo automático
+    cantidadTapers: esquemaTapers.nullable().optional(),
     descuento: esquemaMonto(99_999).optional(),
   })
   .refine((d) => Object.values(d).some((v) => v !== undefined), {

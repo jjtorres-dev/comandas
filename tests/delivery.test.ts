@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import request from "supertest";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -53,7 +54,8 @@ describe("POST /api/pedidos — DELIVERY", () => {
       referenciaEntrega: "Portón verde",
       subtotal: "43.00",
       costoEnvio: "3.00", // Negocio.costoEnvioDefault
-      cantidadTapers: 2, // solo los platos de cocina; la gaseosa no lleva
+      cantidadTapers: 2, // uno por ceviche; la gaseosa no lleva
+      tapersManual: false,
       cargoTapers: "2.00",
       total: "48.00",
     });
@@ -113,7 +115,7 @@ describe("POST /api/pedidos — DELIVERY", () => {
     });
     const gratis = await crearPedido(mozo, { tipo: "DELIVERY", cliente: rosa, costoEnvio: 0, items: dosCevichesYGaseosa });
 
-    expect(res.body.pedido).toMatchObject({ costoEnvio: "5.50", cantidadTapers: 0, cargoTapers: "0.00", total: "48.50" });
+    expect(res.body.pedido).toMatchObject({ costoEnvio: "5.50", cantidadTapers: 0, tapersManual: true, cargoTapers: "0.00", total: "48.50" });
     expect(gratis.body.pedido).toMatchObject({ costoEnvio: "0.00", cantidadTapers: 2, total: "45.00" });
   });
 
@@ -158,7 +160,7 @@ describe("POST /api/pedidos — PARA_LLEVAR y MESA", () => {
     expect((await prisma.cliente.findMany()).map((c) => c.nombre)).toEqual(["Ana"]);
   });
 
-  it("tapers automáticos: suma las cantidades de los items de cocina, combos incluidos", async () => {
+  it("tapers automáticos por producto: suma cantidad × Producto.tapers", async () => {
     const { ceviche, leche } = a.productos;
     const res = await crearPedido(mozo, {
       tipo: "PARA_LLEVAR",
@@ -170,8 +172,27 @@ describe("POST /api/pedidos — PARA_LLEVAR y MESA", () => {
       ],
     });
 
-    // 3 + 2 + 1 = 6 tapers (el combo cuenta por su cantidad); 60 + 12 + 20 + 25 = 117
-    expect(res.body.pedido).toMatchObject({ cantidadTapers: 6, cargoTapers: "6.00", subtotal: "117.00", total: "123.00" });
+    // 3 ceviches×1 + 4 gaseosas×0 + 2 potas×1 + 1 combo doble×2 = 7 tapers; 60 + 12 + 20 + 25 = 117
+    expect(res.body.pedido).toMatchObject({ cantidadTapers: 7, tapersManual: false, cargoTapers: "7.00", subtotal: "117.00", total: "124.00" });
+
+    // Lo decide el producto, no el área: una bebida puede llevar taper y un plato no
+    await prisma.producto.update({ where: { id: a.productos.gaseosa.id }, data: { tapers: 1 } });
+    await prisma.producto.update({ where: { id: a.productos.pota.id }, data: { tapers: 0 } });
+    await prisma.producto.update({ where: { id: a.productos.combo.id }, data: { tapers: 3 } });
+    const cambiado = await crearPedido(mozo, {
+      tipo: "DELIVERY",
+      cliente: rosa,
+      items: [
+        { varianteId: a.v.gaseosa, cantidad: 4 },
+        { varianteId: a.v.pota18, cantidad: 2 },
+        { varianteId: a.v.combo, cantidad: 2, componentes: [ceviche.id, ceviche.id] },
+      ],
+    });
+    expect(cambiado.body.pedido).toMatchObject({ cantidadTapers: 10, cargoTapers: "10.00" }); // 4 + 0 + 2×3
+
+    const carta = await request(app).get("/api/carta").set(conToken(mozo));
+    const tapersEnCarta = Object.fromEntries(carta.body.categorias[0].productos.map((p: { nombre: string; tapers: number }) => [p.nombre, p.tapers]));
+    expect(tapersEnCarta).toMatchObject({ "Ceviche Simple": 1, "Gaseosa Personal": 1, "Chicharrón de Pota": 0, "Combo Doble": 3 });
 
     // El precio del taper sale del negocio
     await prisma.negocio.update({ where: { id: a.negocio.id }, data: { precioTaper: 1.5 } });
@@ -191,6 +212,101 @@ describe("POST /api/pedidos — PARA_LLEVAR y MESA", () => {
     expect(res.status).toBe(201);
     expect(res.body.pedido).toMatchObject({ cliente: null, costoEnvio: "0.00", cantidadTapers: 0, cargoTapers: "0.00", total: "43.00" });
     expect(await prisma.cliente.count()).toBe(0);
+  });
+});
+
+describe("recálculo de tapers", () => {
+  const ronda = (pedidoId: string, items: object[]) =>
+    request(app)
+      .post(`/api/pedidos/${pedidoId}/items`)
+      .set(conToken(mozo))
+      .send({ idRonda: randomUUID(), items: items.map((i) => ({ cantidad: 1, notas: [], ...i })) });
+  const cancelar = (pedidoId: string, itemId: string) =>
+    request(app).patch(`/api/pedidos/${pedidoId}/items/${itemId}/cancelar`).set(conToken(mozo));
+
+  it("se recalculan al agregar rondas y al cancelar items", async () => {
+    const { ceviche, leche } = a.productos;
+    const creado = await crearPedido(mozo, { tipo: "PARA_LLEVAR", items: [{ varianteId: a.v.ceviche, cantidad: 2 }] });
+    const { id, items } = creado.body.pedido;
+    expect(creado.body.pedido).toMatchObject({ cantidadTapers: 2, cargoTapers: "2.00", total: "42.00" });
+
+    // Ronda: combo doble (2 tapers) + gaseosa (0) + leche (1)
+    const conRonda = await ronda(id, [
+      { varianteId: a.v.combo, componentes: [ceviche.id, leche.id] },
+      { varianteId: a.v.gaseosa },
+      { varianteId: a.v.leche },
+    ]);
+    expect(conRonda.status).toBe(201);
+    // 40 + 25 + 3 + 12 = 80; 5 tapers
+    expect(conRonda.body.pedido).toMatchObject({ cantidadTapers: 5, tapersManual: false, cargoTapers: "5.00", subtotal: "80.00", total: "85.00" });
+
+    // Reintentar la misma ronda no vuelve a sumar
+    const sinCambios = await request(app)
+      .post(`/api/pedidos/${id}/items`)
+      .set(conToken(mozo))
+      .send({ idRonda: conRonda.body.pedido.items[1].idRonda, items: [{ varianteId: a.v.leche, cantidad: 1, notas: [] }] });
+    expect(sinCambios.body.pedido).toMatchObject({ cantidadTapers: 5, total: "85.00" });
+
+    // Cancelar los 2 ceviches quita sus 2 tapers; cancelar la gaseosa no cambia nada
+    const sinCeviches = await cancelar(id, items[0].id);
+    expect(sinCeviches.body.pedido).toMatchObject({ cantidadTapers: 3, cargoTapers: "3.00", subtotal: "40.00", total: "43.00" });
+    const gaseosa = sinCeviches.body.pedido.items.find((i: { nombreProducto: string }) => i.nombreProducto === "Gaseosa Personal");
+    const sinGaseosa = await cancelar(id, gaseosa.id);
+    expect(sinGaseosa.body.pedido).toMatchObject({ cantidadTapers: 3, total: "40.00" });
+  });
+
+  it("en delivery el recálculo conserva el costo de envío y usa el precio del taper del negocio", async () => {
+    await prisma.negocio.update({ where: { id: a.negocio.id }, data: { precioTaper: 1.5 } });
+    const creado = await crearPedido(mozo, { tipo: "DELIVERY", cliente: rosa, costoEnvio: 5, items: [{ varianteId: a.v.ceviche }] });
+    expect(creado.body.pedido).toMatchObject({ cantidadTapers: 1, cargoTapers: "1.50", total: "26.50" });
+
+    const conRonda = await ronda(creado.body.pedido.id, [{ varianteId: a.v.pota10, cantidad: 3 }]);
+
+    expect(conRonda.body.pedido).toMatchObject({ costoEnvio: "5.00", cantidadTapers: 4, cargoTapers: "6.00", total: "61.00" });
+  });
+
+  it("tapersManual: una cantidad fijada al crear el pedido no se recalcula", async () => {
+    const creado = await crearPedido(mozo, { tipo: "PARA_LLEVAR", cantidadTapers: 1, items: [{ varianteId: a.v.ceviche, cantidad: 2 }] });
+    const { id, items } = creado.body.pedido;
+    expect(creado.body.pedido).toMatchObject({ cantidadTapers: 1, tapersManual: true, cargoTapers: "1.00", total: "41.00" });
+
+    const conRonda = await ronda(id, [{ varianteId: a.v.leche, cantidad: 3 }]);
+    const conCancelacion = await cancelar(id, items[0].id);
+
+    expect(conRonda.body.pedido).toMatchObject({ cantidadTapers: 1, tapersManual: true, cargoTapers: "1.00", total: "77.00" });
+    expect(conCancelacion.body.pedido).toMatchObject({ cantidadTapers: 1, tapersManual: true, total: "37.00" });
+  });
+
+  it("tapersManual: fijarla con /cargos detiene el recálculo; null lo reactiva", async () => {
+    const creado = await crearPedido(mozo, { tipo: "DELIVERY", cliente: rosa, items: [{ varianteId: a.v.ceviche, cantidad: 2 }] });
+    const { id } = creado.body.pedido;
+    expect(creado.body.pedido).toMatchObject({ cantidadTapers: 2, tapersManual: false, total: "45.00" });
+
+    // Un ajuste que no toca los tapers no los vuelve manuales
+    const soloEnvio = await patch(cocina, `${id}/cargos`, { costoEnvio: 4 });
+    expect(soloEnvio.body.pedido).toMatchObject({ cantidadTapers: 2, tapersManual: false, total: "46.00" });
+
+    const fijado = await patch(cocina, `${id}/cargos`, { cantidadTapers: 6 });
+    expect(fijado.body.pedido).toMatchObject({ cantidadTapers: 6, tapersManual: true, cargoTapers: "6.00", total: "50.00" });
+
+    const conRonda = await ronda(id, [{ varianteId: a.v.pota10, cantidad: 2 }]);
+    expect(conRonda.body.pedido).toMatchObject({ cantidadTapers: 6, tapersManual: true, cargoTapers: "6.00", total: "70.00" });
+
+    // null = volver al cálculo automático: 2 ceviches + 2 potas
+    const automatico = await patch(cocina, `${id}/cargos`, { cantidadTapers: null });
+    expect(automatico.status).toBe(200);
+    expect(automatico.body.pedido).toMatchObject({ cantidadTapers: 4, tapersManual: false, cargoTapers: "4.00", total: "68.00" });
+
+    const otraRonda = await ronda(id, [{ varianteId: a.v.leche }]);
+    expect(otraRonda.body.pedido).toMatchObject({ cantidadTapers: 5, tapersManual: false, total: "81.00" });
+  });
+
+  it("en MESA los tapers siguen en 0 aunque se agreguen rondas", async () => {
+    const creado = await crearPedido(mozo, { mesaId: a.mesas[0].id, items: [{ varianteId: a.v.ceviche }] });
+
+    const conRonda = await ronda(creado.body.pedido.id, [{ varianteId: a.v.leche, cantidad: 2 }]);
+
+    expect(conRonda.body.pedido).toMatchObject({ cantidadTapers: 0, tapersManual: false, cargoTapers: "0.00", total: "44.00" });
   });
 });
 

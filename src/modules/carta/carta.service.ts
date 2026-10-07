@@ -38,6 +38,7 @@ export async function obtenerCarta(negocioId: string) {
         descripcion: p.descripcion,
         imagenUrl: p.imagenUrl,
         areaId: p.areaId,
+        tapers: p.tapers,
         esCombo: p.esCombo,
         comboCantidad: p.comboCantidad,
         variantes: p.variantes.map((v) => ({ id: v.id, nombre: v.nombre, precio: dinero(v.precio) })),

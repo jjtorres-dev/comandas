@@ -212,6 +212,8 @@ async function crearNegocio(tx: Tx, usuarios: { usuario: string; nombre: string;
           nombre: p.nombre,
           orden: j + 1,
           esCombo: p.comboCantidad !== undefined,
+          // Tapers por unidad: bebidas 0, combos uno por plato (2 o 3), el resto 1
+          tapers: cat.area === "Bebidas" ? 0 : (p.comboCantidad ?? 1),
           comboCantidad: p.comboCantidad ?? null,
           variantes: {
             create: variantes.map((v, k) => ({

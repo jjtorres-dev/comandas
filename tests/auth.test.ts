@@ -2,6 +2,7 @@ import jwt from "jsonwebtoken";
 import request from "supertest";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { esOrigenPermitido } from "../src/config/cors";
+import { leerTrustProxy } from "../src/config/env";
 import { intentosDeLogin } from "../src/modules/auth/auth.routes";
 import {
   app,
@@ -181,6 +182,18 @@ describe("requireAuth y requireRol", () => {
 
     expect(res.status).toBe(404);
     expect(res.body.error.codigo).toBe("NO_ENCONTRADO");
+  });
+});
+
+describe("TRUST_PROXY", () => {
+  it("vacío no confía en ningún proxy; un número indica cuántos hay delante", () => {
+    expect(leerTrustProxy(undefined)).toBeUndefined();
+    expect(leerTrustProxy("")).toBeUndefined();
+    expect(leerTrustProxy("  ")).toBeUndefined();
+    expect(leerTrustProxy("1")).toBe(1); // Railway
+    expect(leerTrustProxy("true")).toBe(true);
+    expect(leerTrustProxy("false")).toBe(false);
+    expect(leerTrustProxy("loopback, 10.0.0.0/8")).toBe("loopback, 10.0.0.0/8");
   });
 });
 
