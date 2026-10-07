@@ -56,6 +56,7 @@ enum MetodoPago {
 
 model Negocio {
   id        String   @id @default(uuid())
+  codigo    String   @unique // identifica al negocio en el login, p. ej. "valentina"
   nombre    String
   ruc       String?
   telefono  String?
@@ -248,6 +249,8 @@ model Pedido {
   // cambia de dirección después, el historial no se altera)
   direccionEntrega  String?
   referenciaEntrega String?
+  nombreCliente     String? // también para llevar: "pedido de Juan", sin teléfono
+  telefonoCliente   String?
   costoEnvio        Decimal @default(0) @db.Decimal(10, 2)
 
   // Tapers: aplica a DELIVERY y PARA_LLEVAR
@@ -287,6 +290,11 @@ model PedidoItem {
   areaId     String
   cantidad   Int        @default(1)
   estado     EstadoItem @default(PENDIENTE)
+  orden      Int        @default(0) // posición en la comanda, en el orden en que se pidió
+
+  // Lo genera el celular por cada ronda: si reintenta, no se duplican los items.
+  // La primera ronda usa el idCliente del pedido
+  idRonda String
 
   // Copias del momento del pedido: si mañana sube el precio,
   // los pedidos de hoy no cambian
@@ -305,6 +313,7 @@ model PedidoItem {
   area     Area             @relation(fields: [areaId], references: [id])
 
   @@index([areaId, estado])
+  @@index([pedidoId, idRonda])
 }
 
 // ---------- CAJA ----------
@@ -319,6 +328,7 @@ model Pago {
   monto       Decimal    @db.Decimal(10, 2)
   recibido    Decimal?   @db.Decimal(10, 2) // solo efectivo: para calcular el vuelto
   referencia  String? // nº de operación Yape/Plin o voucher
+  itemIds     String[] // cuenta dividida: los PedidoItem que cubre este pago (vacío = a cuenta)
   creadoEn    DateTime   @default(now())
 
   pedido    Pedido    @relation(fields: [pedidoId], references: [id])

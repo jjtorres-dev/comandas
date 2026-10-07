@@ -1,0 +1,153 @@
+// Piezas compartidas por todo lo que modifica un pedido (pedidos, pagos):
+// cómo se carga, cómo se bloquea, cómo se recalcula y cómo viaja en el JSON.
+
+import { EstadoItem, EstadoPedido, Prisma } from "../../generated/prisma/client";
+import { CERO, dinero, sumar } from "../../lib/dinero";
+import { conflicto, noEncontrado, sinPermiso } from "../../lib/errores";
+import type { Tx } from "../../lib/prisma";
+import { emitirANegocio } from "../../realtime/socket";
+
+export const incluirCompleto = {
+  mesa: { select: { id: true, nombre: true } },
+  mozo: { select: { id: true, nombre: true } },
+  repartidor: { select: { id: true, nombre: true } },
+  pagos: { select: { monto: true } },
+  // En el orden en que se pidieron, ronda tras ronda
+  items: { orderBy: [{ orden: "asc" }, { creadoEn: "asc" }, { id: "asc" }] },
+} satisfies Prisma.PedidoInclude;
+
+export type PedidoCompleto = Prisma.PedidoGetPayload<{ include: typeof incluirCompleto }>;
+
+// Forma en que el pedido viaja por HTTP y por Socket.IO
+export function serializar(p: PedidoCompleto) {
+  const totalPagado = sumar(p.pagos.map((pago) => pago.monto));
+
+  return {
+    id: p.id,
+    numero: p.numero,
+    tipo: p.tipo,
+    estado: p.estado,
+    mesa: p.mesa,
+    mozo: p.mozo,
+    cliente:
+      p.nombreCliente || p.telefonoCliente ? { nombre: p.nombreCliente, telefono: p.telefonoCliente } : null,
+    direccionEntrega: p.direccionEntrega,
+    referenciaEntrega: p.referenciaEntrega,
+    repartidor: p.repartidor,
+    nota: p.nota,
+    subtotal: dinero(p.subtotal),
+    costoEnvio: dinero(p.costoEnvio),
+    cantidadTapers: p.cantidadTapers,
+    cargoTapers: dinero(p.cargoTapers),
+    descuento: dinero(p.descuento),
+    total: dinero(p.total),
+    totalPagado: dinero(totalPagado),
+    saldoPendiente: dinero(Prisma.Decimal.max(0, p.total.minus(totalPagado))),
+    pagado: p.pagado,
+    pagadoEn: p.pagadoEn,
+    creadoEn: p.creadoEn,
+    items: p.items.map((i) => ({
+      id: i.id,
+      varianteId: i.varianteId,
+      areaId: i.areaId,
+      cantidad: i.cantidad,
+      estado: i.estado,
+      nombreProducto: i.nombreProducto,
+      precioUnitario: dinero(i.precioUnitario),
+      notas: i.notas,
+      componentes: i.componentes,
+      orden: i.orden,
+      idRonda: i.idRonda,
+      creadoEn: i.creadoEn,
+    })),
+  };
+}
+
+export type PedidoSerializado = ReturnType<typeof serializar>;
+
+export const obtenerCompleto = (tx: Tx, pedidoId: string) =>
+  tx.pedido.findUniqueOrThrow({ where: { id: pedidoId }, include: incluirCompleto });
+
+// Serializa y avisa a los demás dispositivos del negocio. Llamar después del commit.
+export function publicar(evento: "pedido:creado" | "pedido:actualizado", completo: PedidoCompleto) {
+  const pedido = serializar(completo);
+  emitirANegocio(completo.negocioId, evento, pedido);
+  return pedido;
+}
+
+// Bloquea la fila del negocio: serializa la creación de pedidos y la apertura de
+// caja, para que no se repita un correlativo ni se abran dos turnos a la vez
+export async function bloquearNegocio(tx: Tx, negocioId: string) {
+  const filas = await tx.$queryRaw<{ id: string }[]>`
+    SELECT id FROM "Negocio" WHERE id = ${negocioId} AND activo FOR UPDATE`;
+  if (filas.length === 0) throw sinPermiso("El negocio no está activo");
+  return tx.negocio.findUniqueOrThrow({ where: { id: negocioId } });
+}
+
+// Bloquea el pedido durante la transacción para que dos cambios simultáneos
+// no recalculen con datos viejos. 404 si no es de este negocio.
+export async function bloquearPedido(tx: Tx, negocioId: string, pedidoId: string) {
+  const filas = await tx.$queryRaw<{ id: string }[]>`
+    SELECT id FROM "Pedido" WHERE id = ${pedidoId} AND "negocioId" = ${negocioId} FOR UPDATE`;
+  if (filas.length === 0) throw noEncontrado("El pedido no existe");
+  return tx.pedido.findUniqueOrThrow({ where: { id: pedidoId } });
+}
+
+export function exigirNoCancelado(pedido: { estado: EstadoPedido }) {
+  if (pedido.estado === EstadoPedido.CANCELADO) {
+    throw conflicto("PEDIDO_CANCELADO", "El pedido está cancelado");
+  }
+}
+
+// Estado del pedido a partir de sus items no cancelados
+export function calcularEstadoPedido(actual: EstadoPedido, items: EstadoItem[]): EstadoPedido {
+  const todos = (...estados: EstadoItem[]) => items.every((e) => estados.includes(e));
+
+  if (items.length === 0) return EstadoPedido.CANCELADO; // no queda nada por servir
+  if (todos(EstadoItem.ENTREGADO)) return EstadoPedido.ENTREGADO;
+  if (items.includes(EstadoItem.PREPARANDO)) return EstadoPedido.PREPARANDO;
+  if (todos(EstadoItem.PENDIENTE)) return EstadoPedido.PENDIENTE;
+  if (todos(EstadoItem.LISTO, EstadoItem.ENTREGADO)) {
+    // EN_CAMINO lo marca el despacho de delivery, no los items
+    return actual === EstadoPedido.EN_CAMINO ? EstadoPedido.EN_CAMINO : EstadoPedido.LISTO;
+  }
+  // Mezcla de pendientes con items ya listos o entregados (p. ej. una ronda nueva)
+  return EstadoPedido.PREPARANDO;
+}
+
+// Recalcula totales, estado y si quedó pagado. Se llama al final de todo cambio.
+// total = subtotal + costoEnvio + cargoTapers - descuento
+export async function recalcular(tx: Tx, pedidoId: string) {
+  const pedido = await tx.pedido.findUniqueOrThrow({
+    where: { id: pedidoId },
+    include: {
+      items: { where: { estado: { not: EstadoItem.CANCELADO } } },
+      pagos: { select: { monto: true } },
+    },
+  });
+
+  const subtotal = sumar(pedido.items.map((i) => i.precioUnitario.times(i.cantidad)));
+  const total = Prisma.Decimal.max(
+    0,
+    subtotal.plus(pedido.costoEnvio).plus(pedido.cargoTapers).minus(pedido.descuento),
+  );
+
+  const totalPagado = sumar(pedido.pagos.map((p) => p.monto));
+  if (totalPagado.greaterThan(total)) {
+    throw conflicto("TOTAL_MENOR_A_LO_PAGADO", "El total no puede quedar por debajo de lo que ya se pagó", {
+      totalPagado: dinero(totalPagado),
+    });
+  }
+  // Queda pagado cuando lo cobrado iguala el total; eso es lo que libera la mesa
+  const recienPagado = !pedido.pagado && totalPagado.greaterThan(CERO) && totalPagado.equals(total);
+
+  await tx.pedido.update({
+    where: { id: pedidoId },
+    data: {
+      subtotal,
+      total,
+      estado: calcularEstadoPedido(pedido.estado, pedido.items.map((i) => i.estado)),
+      ...(recienPagado ? { pagado: true, pagadoEn: new Date() } : {}),
+    },
+  });
+}

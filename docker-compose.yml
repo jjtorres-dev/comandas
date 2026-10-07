@@ -1,0 +1,32 @@
+services:
+  postgres:
+    image: docker.io/library/postgres:16-alpine
+    container_name: comandas-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: comandas
+      POSTGRES_PASSWORD: comandas_dev
+      POSTGRES_DB: comandas
+    ports:
+      - "5433:5432"
+    volumes:
+      - comandas_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U comandas -d comandas"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  adminer:
+    image: docker.io/library/adminer:latest
+    container_name: comandas-adminer
+    restart: unless-stopped
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+
+volumes:
+  comandas_pgdata:

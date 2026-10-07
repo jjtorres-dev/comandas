@@ -10,6 +10,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient, Rol } from "../src/generated/prisma/client";
 
 const NOMBRE_NEGOCIO = "Cevichería Valentina";
+const CODIGO_NEGOCIO = "valentina"; // con este código se inicia sesión
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
@@ -164,6 +165,7 @@ async function borrarNegocio(tx: Tx, negocioId: string) {
 async function crearNegocio(tx: Tx, usuarios: { usuario: string; nombre: string; passwordHash: string; roles: Rol[] }[]) {
   const negocio = await tx.negocio.create({
     data: {
+      codigo: CODIGO_NEGOCIO,
       nombre: NOMBRE_NEGOCIO,
       direccion: "Tarapoto, Perú",
       costoEnvioDefault: "3.00",
@@ -261,7 +263,7 @@ async function main() {
 
   const negocio = await prisma.$transaction(
     async (tx) => {
-      const existentes = await tx.negocio.findMany({ where: { nombre: NOMBRE_NEGOCIO } });
+      const existentes = await tx.negocio.findMany({ where: { codigo: CODIGO_NEGOCIO } });
       for (const n of existentes) await borrarNegocio(tx, n.id);
       return crearNegocio(tx, usuarios);
     },
