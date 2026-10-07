@@ -1,8 +1,10 @@
-import { CashRegisterIcon, CookingPotIcon, type Icon, MopedIcon, SignOutIcon } from "@phosphor-icons/react";
+import { CashRegisterIcon, CookingPotIcon, type Icon, MonitorIcon, MopedIcon, PlayIcon, SignOutIcon, SpeakerSlashIcon } from "@phosphor-icons/react";
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router";
 import { Cabecera } from "../componentes/Cabecera";
+import { empezarTurno, useTurno } from "../local/turno";
+import { useAvisosNuevos } from "../local/useAvisosNuevos";
 import { useSesion } from "../sesion/contexto";
 
 // `escala` compensa los íconos cuyo dibujo ocupa menos de su caja: la moto es
@@ -16,6 +18,10 @@ const PESTANAS: { ruta: string; nombre: string; icono: Icon; escala?: string }[]
 // Cocina y caja: una sola persona frente a un monitor, a veces lejos de él.
 // Ancho completo, pestañas grandes y texto marino sobre blanco (contraste AAA).
 export function LayoutLocal() {
+  const { iniciado, pantalla, sonido } = useTurno();
+  // Los avisos de pedido nuevo suenan en cualquier pestaña del local
+  const sinEmpezar = useAvisosNuevos();
+
   return (
     <div className="flex min-h-dvh flex-col">
       <Cabecera acciones={<Salir />}>
@@ -42,6 +48,12 @@ export function LayoutLocal() {
                       )}
                       <Icono aria-hidden="true" weight={isActive ? "fill" : "regular"} className={`relative size-6 lg:size-8 ${escala}`} />
                       <span className="relative">{nombre}</span>
+                      {ruta === "cocina" && sinEmpezar > 0 && (
+                        <span className="relative grid h-8 min-w-8 place-items-center rounded-full bg-primario px-2 text-xl leading-none font-bold text-tinta lg:h-10 lg:min-w-10 lg:text-2xl">
+                          {sinEmpezar}
+                          <span className="sr-only"> sin empezar</span>
+                        </span>
+                      )}
                     </>
                   )}
                 </NavLink>
@@ -51,8 +63,37 @@ export function LayoutLocal() {
         </nav>
       </Cabecera>
 
-      <main className="flex w-full flex-1 flex-col px-4 py-5 lg:px-8 lg:py-8">
-        <Outlet />
+      {/* Quien usa lector de pantalla también se entera de que hay pedidos sin empezar */}
+      <p aria-live="polite" className="sr-only">
+        {sinEmpezar > 0 ? `${sinEmpezar === 1 ? "1 pedido" : `${sinEmpezar} pedidos`} sin empezar en cocina` : ""}
+      </p>
+
+      {iniciado && !sonido && (
+        <p role="alert" className="flex items-center gap-2.5 bg-alerta px-4 py-2 text-lg font-bold text-tinta lg:px-8 lg:text-xl">
+          <SpeakerSlashIcon aria-hidden="true" weight="bold" className="size-6 shrink-0" />
+          Este equipo no pudo activar el sonido. Los pedidos nuevos solo se verán en pantalla.
+        </p>
+      )}
+
+      {iniciado && pantalla === "no-disponible" && (
+        <p className="flex items-center gap-2.5 bg-alerta-suave px-4 py-2 text-lg font-bold text-alerta-fuerte lg:px-8 lg:text-xl">
+          <MonitorIcon aria-hidden="true" weight="bold" className="size-6 shrink-0" />
+          Esta pantalla se puede apagar sola. Revisa el ahorro de energía del equipo.
+        </p>
+      )}
+
+      <main className="flex w-full flex-1 flex-col px-4 py-5 lg:px-8 lg:py-5">
+        {iniciado ? (
+          <Outlet />
+        ) : (
+          <>
+            <EmpezarTurno esperando={sinEmpezar} />
+            {/* La ruta se resuelve igual (la pestaña queda marcada), pero su contenido espera al turno */}
+            <div hidden>
+              <Outlet />
+            </div>
+          </>
+        )}
       </main>
     </div>
   );
@@ -85,5 +126,29 @@ function Salir() {
         <span className={confirmando ? "" : "hidden sm:inline"}>{confirmando ? "¿Salir?" : "Salir"}</span>
       </button>
     </div>
+  );
+}
+
+// El navegador no deja sonar ni mantener la pantalla encendida sin un toque:
+// el turno empieza con uno, grande y a propósito.
+function EmpezarTurno({ esperando }: { esperando: number }) {
+  return (
+    <section className="m-auto flex w-full max-w-2xl flex-col items-center gap-6 py-8 text-center">
+      <h1 className="text-3xl font-bold text-balance text-tinta lg:text-5xl">
+        {esperando > 0 ? `${esperando === 1 ? "Hay 1 pedido" : `Hay ${esperando} pedidos`} esperando` : "Antes de empezar"}
+      </h1>
+      <button
+        type="button"
+        onClick={empezarTurno}
+        className="presionable inline-flex min-h-24 w-full cursor-pointer items-center justify-center gap-4 rounded-panel bg-primario px-8 text-3xl font-bold text-tinta hover:bg-primario-presionado lg:min-h-32 lg:text-5xl"
+      >
+        <PlayIcon aria-hidden="true" weight="fill" className="size-9 lg:size-12" />
+        Empezar turno
+      </button>
+      <p className="max-w-[36ch] text-xl text-pretty text-marino lg:text-2xl">
+        Este botón activa el sonido de los pedidos nuevos y deja la pantalla encendida. Vas a oír el aviso una vez, para
+        comprobar el volumen.
+      </p>
+    </section>
   );
 }

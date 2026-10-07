@@ -75,13 +75,21 @@ Después, seguir `DESIGN.md`: los tokens están en `frontend/src/estilos.css`
   `src/mozo/lineas.ts` (las iguales se unen solas). Cada para llevar tiene su
   propio borrador (`llevar-<id>`). Las notas de un combo se envían como texto
   con el plato delante (`"Ceviche Simple: sin cebolla"`).
+- Panel de cocina (`/local/cocina`): `src/local/comandas.ts` arma las comandas
+  a partir de los pedidos activos (funciones puras), `acciones.ts` cambia
+  estados siempre con "Deshacer", y `turno.ts` guarda lo que solo vale tras
+  "Empezar turno" (sonido, pantalla encendida, filtro de área). Los avisos de
+  pedido nuevo (`useAvisosNuevos`) viven en `LayoutLocal`: suenan en cualquier
+  pestaña del local y se repiten hasta que alguien toca la tarjeta o Empezar.
+  Los umbrales de tardanza están en `UMBRALES` de `comandas.ts`.
 - Hojas inferiores: `HojaInferior` se ajusta al teclado (meta viewport con
   `interactive-widget=resizes-content` más `visualViewport`). Los avisos de
   sonner salen abajo, sobre la barra fija de cada pantalla, que publica su alto
   con `useEspacioAvisos`.
 - Prueba de punta a punta: `npm run e2e` desde `frontend/` (Playwright, 412×915)
-  contra el entorno de desarrollo con el seed. Usa una mesa libre y la libera
-  al terminar.
+  contra el entorno de desarrollo con el seed (`e2e/mozo.spec.ts` y
+  `e2e/cocina.spec.ts`, que abre al mozo y a la cocina a la vez). Usan mesas
+  libres y las liberan al terminar.
 - La PWA se llama "Comandas" y sus íconos son genéricos (`frontend/public/`).
 
 ## Convenciones

@@ -1,52 +1,9 @@
-import { type APIRequestContext, expect, type Page, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import { boton, cancelarTodo, con, entrarComoMozo, pedidoDeMesa, tokenDe } from "./ayudas";
 
 // Recorrido completo del mozo sobre una mesa libre: pedido con variante,
 // combo y notas, una ronda enviada sin red (la cola la reintenta sola) y el
 // aviso de LISTO cuando cocina marca el pedido por la API.
-
-type Item = { id: string; estado: string; nombreProducto: string; cantidad: number; notas: string[]; componentes: string[]; idRonda: string };
-type Pedido = { id: string; total: string; nota: string | null; mesa: { id: string } | null; items: Item[] };
-
-async function tokenDe(api: APIRequestContext, usuario: string, password: string): Promise<string> {
-  const respuesta = await api.post("/api/auth/login", { data: { codigoNegocio: "valentina", usuario, password } });
-  expect(respuesta.ok(), `login de ${usuario}`).toBeTruthy();
-  return (await respuesta.json()).token;
-}
-
-const con = (token: string) => ({ headers: { Authorization: `Bearer ${token}` } });
-
-async function pedidoDeMesa(api: APIRequestContext, token: string, mesaId: string): Promise<Pedido | undefined> {
-  const { pedidos } = (await (await api.get("/api/pedidos/activos", con(token))).json()) as { pedidos: Pedido[] };
-  return pedidos.find((p) => p.mesa?.id === mesaId);
-}
-
-const boton = (page: Page, nombre: string | RegExp) => page.getByRole("button", { name: nombre });
-
-// El negocio ya está recordado en el equipo, y la vibración se registra para comprobarla
-async function entrarComoMozo(page: Page) {
-  await page.addInitScript(() => {
-    localStorage.setItem("comandas.negocio", "valentina");
-    Object.defineProperty(Navigator.prototype, "vibrate", {
-      configurable: true,
-      value: (patron: unknown) => {
-        const w = window as unknown as { vibraciones?: unknown[] };
-        (w.vibraciones ??= []).push(patron);
-        return true;
-      },
-    });
-  });
-  await page.goto("/login");
-  await page.getByLabel("Usuario").fill("mozo");
-  await page.getByRole("textbox", { name: "Contraseña" }).fill("mozo123");
-  await boton(page, "Entrar").click();
-  await expect(page).toHaveURL(/\/mozo\/mesas/);
-}
-
-async function cancelarTodo(api: APIRequestContext, token: string, pedido: Pedido | undefined) {
-  for (const item of pedido?.items ?? []) {
-    if (item.estado !== "CANCELADO") await api.patch(`/api/pedidos/${pedido!.id}/items/${item.id}/cancelar`, con(token));
-  }
-}
 
 let mesa: { id: string; nombre: string };
 // Segunda mesa libre, para la prueba de mesa ocupada

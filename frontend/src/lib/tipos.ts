@@ -45,7 +45,10 @@ export type Categoria = { id: string; nombre: string; productos: Producto[] };
 
 export type NotaRapida = { id: string; texto: string };
 
-export type Carta = { categorias: Categoria[]; notasRapidas: NotaRapida[] };
+// Área de preparación (cocina, bebidas…)
+export type Area = { id: string; nombre: string };
+
+export type Carta = { categorias: Categoria[]; notasRapidas: NotaRapida[]; areas: Area[] };
 
 // ---------- Pedidos y mesas ----------
 

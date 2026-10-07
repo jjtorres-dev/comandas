@@ -3,7 +3,7 @@ import { prisma } from "../../lib/prisma";
 
 // Carta completa para tomar pedidos: solo lo activo, en el orden configurado
 export async function obtenerCarta(negocioId: string) {
-  const [categorias, notasRapidas] = await Promise.all([
+  const [categorias, notasRapidas, areas] = await Promise.all([
     prisma.categoria.findMany({
       where: { negocioId, activo: true },
       orderBy: [{ orden: "asc" }, { nombre: "asc" }],
@@ -25,6 +25,11 @@ export async function obtenerCarta(negocioId: string) {
     prisma.notaRapida.findMany({
       where: { negocioId, activo: true },
       orderBy: [{ orden: "asc" }, { texto: "asc" }],
+    }),
+    // Áreas de preparación (cocina, bebidas…): el panel de cocina agrupa y filtra por ellas
+    prisma.area.findMany({
+      where: { negocioId, activo: true },
+      orderBy: [{ orden: "asc" }, { nombre: "asc" }],
     }),
   ]);
 
@@ -50,5 +55,6 @@ export async function obtenerCarta(negocioId: string) {
       })),
     })),
     notasRapidas: notasRapidas.map((n) => ({ id: n.id, texto: n.texto })),
+    areas: areas.map((a) => ({ id: a.id, nombre: a.nombre })),
   };
 }

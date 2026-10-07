@@ -43,6 +43,14 @@
   --color-borde: #c5d3dc;
   --color-borde-fuerte: #7c8fa6;
 
+  /* Tamaños de la comanda en monitor, para leer a 2 o 3 metros (ver DESIGN.md) */
+  --text-cantidad: 2.5rem;
+  --text-cantidad--line-height: 1;
+  --text-plato: 1.75rem;
+  --text-plato--line-height: 1.2;
+  --text-nota: 1.625rem;
+  --text-nota--line-height: 1.25;
+
   --radius-interior: 0.625rem;
   --radius-control: 0.875rem;
   --radius-panel: 1.25rem;
@@ -58,6 +66,22 @@
   --animate-pulso: pulso 180ms var(--ease-salida);
   --animate-llegada: llegada 280ms var(--ease-salida);
 
+  /* Pedido nuevo en cocina: la tarjeta se enciende una vez al llegar */
+  --animate-destello: destello 300ms var(--ease-salida);
+  /* Cuenta atrás de "Deshacer": es un reloj, por eso es lineal y dura lo que dura la barra */
+  --animate-cuenta: cuenta 8s linear forwards;
+
+  @keyframes destello {
+    from {
+      background-color: var(--color-primario);
+      transform: scale(1.02);
+    }
+  }
+  @keyframes cuenta {
+    to {
+      transform: scaleX(0);
+    }
+  }
   @keyframes pulso {
     from {
       transform: scale(1.25);
@@ -197,7 +221,8 @@ html:has(dialog.hoja[open]) {
     animation-duration: 2.4s;
   }
   .animate-pulso,
-  .animate-llegada {
+  .animate-llegada,
+  .animate-destello {
     animation: none;
   }
   /* La hoja aparece y desaparece con opacidad, sin desplazarse */

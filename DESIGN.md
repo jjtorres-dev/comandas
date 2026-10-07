@@ -193,6 +193,18 @@ siempre `tinta`, nunca blanco. Blanco solo sobre `marino` y `peligro`.
 blanco o papel (AAA). El texto sobre un relleno de color mide al menos 20 px
 en negrita, que es donde 5.4:1 a 5.7:1 alcanza AAA para texto grande.
 
+**Las reglas de `/local`.** En el panel de cocina el color tiene un solo
+significado cada uno, para leerlo a 2 o 3 metros:
+
+- **Tipo de pedido** (franja de la tarjeta): Mesa en blanco con filete de
+  tinta, Para llevar en `primario`, Delivery en `acento`. Es la única excepción
+  a la reserva del naranja, y vale solo en `/local`.
+- **Tardanza**: `alerta` con "Tarda" (15 min) y `peligro` con "Muy tarde"
+  (25 min), en la píldora del tiempo y en el borde de la tarjeta.
+- **Listo**: `listo`, en el botón y en lo ya terminado.
+- **Notas**: inverso, `marino` con texto blanco en negrita e ícono de aviso.
+  Ningún otro elemento del contenido de `/local` usa ese tratamiento.
+
 **La regla del estado doble.** Un estado nunca se comunica solo con color:
 lleva ícono y palabra ("En línea", "Reconectando").
 
@@ -367,6 +379,36 @@ envío normal, solo cuando ya falló una vez.
 ### Píldora de estado
 32 px, ícono y palabra: Pendiente (`fondo`), Preparando (`alerta-suave`),
 Listo (`listo`), Entregado (`primario-suave`), Cancelado (`peligro-suave`).
+
+### Comanda (cocina)
+Una tarjeta por pedido con platos por preparar, la más antigua primero, en dos
+columnas en monitor (una tarjeta corta sube al hueco que deja una larga) y en
+lista en celular. Son dos y no tres porque, con los tamaños de lectura a
+distancia, es el ancho en que una tarjeta de 6 platos cabe entera. De arriba abajo: franja del tipo con el número y el tiempo; nota general;
+rondas ya hechas en una línea gris; cada ronda pendiente como bloque (con
+"Ronda 2" y "NUEVO" si nadie la empezó), sus platos agrupados por área; y al
+pie "Empezar" y "Listo" de 72 px.
+
+Tamaños mínimos en monitor (1920×1080), con sus tokens: número del pedido
+48 px, cantidad 40 px (`text-cantidad`), plato 28 px (`text-plato`), nota 26 px
+en negrita (`text-nota`), tiempo 24 px. Una tarjeta de 6 platos cabe entera en
+pantalla. En celular bajan en proporción (36, 36, 24, 20 y 20 px).
+
+Cada plato es una fila tocable que lo marca listo a él solo; tocar uno ya
+listo lo devuelve a preparación. El estado va bajo la cantidad, o una vez en el
+encabezado del área si todo el grupo está igual.
+
+### Deshacer (cocina)
+Todo cambio de estado muestra durante 8 segundos qué se hizo y un botón
+"Deshacer", con una línea que se acorta. En monitor va en la fila del filtro, a
+la derecha, donde no tapa ninguna tarjeta; en celular, abajo. Lo marcado listo
+queda además en "Recién listos" (columna angosta en monitor, franja plegada en
+celular) con "Deshacer" y "Entregado".
+
+### Empezar turno
+`/local` abre con un solo botón enorme: ese toque activa el sonido de los
+pedidos nuevos y pide mantener la pantalla encendida. Si el navegador no lo
+permite, queda una franja `alerta-suave` que lo dice.
 
 ### Feedback
 Tres animaciones, todas de una sola vez: `pulso` (180 ms) en la cantidad que

@@ -312,7 +312,8 @@ lleva en su código.
       ]
     }
   ],
-  "notasRapidas": [{ "id": "…", "texto": "Sin cebolla" }]
+  "notasRapidas": [{ "id": "…", "texto": "Sin cebolla" }],
+  "areas": [{ "id": "…", "nombre": "Cocina" }, { "id": "…", "nombre": "Bebidas" }]
 }
 ```
 
@@ -323,6 +324,7 @@ lleva en su código.
 | `esCombo`, `comboCantidad` | En un combo el cliente elige exactamente `comboCantidad` platos (2 = doble, 3 = triple) |
 | `opcionesCombo` | Solo combos: `[{ productoId, nombre }]`, los platos elegibles. El `productoId` es lo que se envía en `componentes` |
 | `notasRapidas` | Botones de texto para las notas de un item |
+| `areas` | Áreas de preparación activas, en su orden: `[{ id, nombre }]`. Es el `areaId` de cada producto y de cada item de un pedido; el panel de cocina agrupa y filtra por ellas |
 
 ---
 

@@ -65,6 +65,10 @@ describe("GET /api/carta", () => {
       ],
     });
     expect(res.body.notasRapidas.map((n: { texto: string }) => n.texto)).toEqual(["Sin cebolla"]);
+    // Solo las áreas de este negocio, en su orden; cada producto apunta a una de ellas
+    expect(res.body.areas.map((x: { nombre: string }) => x.nombre)).toEqual(["Cocina", "Bebidas"]);
+    const idsDeArea = res.body.areas.map((x: { id: string }) => x.id);
+    expect(productos.every((p: { areaId: string }) => idsDeArea.includes(p.areaId))).toBe(true);
   });
 });
 

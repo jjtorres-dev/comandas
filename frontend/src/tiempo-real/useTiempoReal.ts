@@ -49,11 +49,26 @@ export function useTiempoReal(token: string | null, alPerderSesion: () => void):
       }
     });
 
+    // El socket tarda en notar un corte (hasta 45 s, por su latido). El
+    // navegador lo sabe al instante: el indicador no espera.
+    const alCortarse = () => setEstado("reconectando");
+    const alVolver = () => {
+      if (!socket.connected) return void socket.connect();
+      setEstado("en-linea");
+      // El socket nunca notó el corte: los eventos de ese rato se perdieron igual
+      invalidarPedidos();
+      invalidarCaja();
+    };
+    window.addEventListener("offline", alCortarse);
+    window.addEventListener("online", alVolver);
+
     socket.on("pedido:creado", invalidarPedidos);
     socket.on("pedido:actualizado", invalidarPedidos);
     socket.on("caja:actualizada", invalidarCaja);
 
     return () => {
+      window.removeEventListener("offline", alCortarse);
+      window.removeEventListener("online", alVolver);
       socket.removeAllListeners();
       socket.disconnect();
     };
