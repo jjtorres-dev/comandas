@@ -86,7 +86,14 @@ test("abrir caja, cobrar mixto, dividir por platos, corregir un pago y cerrar co
     await expect(cuenta).toContainText("Total");
     await expect(cobro).toContainText("S/ 53.00");
     // Ningún método viene elegido: no se puede cobrar todavía
-    await expect(cobro.getByRole("button", { name: "Cobrar S/ 53.00" })).toBeDisabled();
+    await expect(cobro.getByText("1. ¿Cómo paga?")).toBeVisible();
+    await expect(cobro.getByRole("button", { name: "Primero elige cómo paga" })).toBeDisabled();
+    // Los pasos aparecen al avanzar: en efectivo, cuánto entrega y recién después cobrar
+    await cobro.getByRole("button", { name: "Efectivo" }).click();
+    await expect(cobro.getByLabel("2. ¿Cuánto entrega?")).toBeFocused();
+    await expect(cobro.getByRole("button", { name: "3. Cobrar S/ 53.00" })).toBeEnabled();
+    await cobro.getByRole("button", { name: "Yape" }).click();
+    await expect(cobro.getByRole("button", { name: "2. Cobrar S/ 53.00" })).toBeEnabled();
 
     await cobro.getByRole("button", { name: "Agregar otro método" }).click();
     const parte1 = cobro.getByRole("group", { name: "Pago 1" });
@@ -94,12 +101,11 @@ test("abrir caja, cobrar mixto, dividir por platos, corregir un pago y cerrar co
     await parte1.getByRole("textbox", { name: "Pago 1" }).fill("20");
     // La otra parte se ajusta sola a lo que falta
     await expect(parte2.getByRole("textbox", { name: "Pago 2" })).toHaveValue("33");
-    await parte1.getByRole("button", { name: "Yape" }).click();
     await parte1.getByLabel(/N.º de operación/).fill("OP 4471");
     await parte2.getByRole("button", { name: "Efectivo" }).click();
 
     // Con menos de lo que toca, no deja cobrar
-    await parte2.getByLabel("Recibido").fill("30");
+    await parte2.getByLabel("¿Cuánto entrega?").fill("30");
     await expect(cobro.getByText("Faltan", { exact: true }).locator("..")).toContainText("S/ 3.00");
     await expect(cobro.getByRole("button", { name: "Cobrar S/ 53.00" })).toBeDisabled();
     await parte2.getByRole("button", { name: "S/ 50" }).click();
@@ -219,7 +225,19 @@ test("abrir caja, cobrar mixto, dividir por platos, corregir un pago y cerrar co
     await expect(franja).toContainText("1 pago anulado");
     await expect(franja).toContainText(total("Yape", "0.00"));
 
+    // Anular un pago de un pedido que ya estaba pagado reabre su cuenta, sin ocupar la mesa
+    const delB = page.getByRole("article", { name: new RegExp(`Pedido ${pedidoB.numero},`) });
+    await delB.getByRole("listitem").filter({ hasText: "Tarjeta" }).getByRole("button", { name: "Anular pago" }).click();
+    await dialogo.getByLabel(/Por qué se anula/).fill("Pasó dos veces la tarjeta");
+    await dialogo.getByRole("button", { name: /Anular Tarjeta S\/ 60.00/ }).click();
+    await expect(dialogo).toBeHidden();
+    await expect(franja).toContainText("2 pagos anulados");
+
     await page.getByRole("tab", { name: /Por cobrar/ }).click();
+    await expect(fila(pedidoB.numero)).toContainText(`${mesaB.nombre} · cuenta reabierta`);
+    await expect(fila(pedidoB.numero)).toContainText("S/ 60.00");
+    const mesas = (await (await request.get("/api/mesas", con(tokenCaja))).json()).mesas as { id: string; estado: string }[];
+    expect(mesas.find((m) => m.id === mesaB.id)?.estado).toBe("libre");
     await expect(fila(pedidoA.numero)).toContainText("S/ 20.00");
     await expect(fila(pedidoA.numero)).toContainText("Falta de S/ 53.00");
   });
@@ -228,7 +246,7 @@ test("abrir caja, cobrar mixto, dividir por platos, corregir un pago y cerrar co
     const esperado = await esperadoEn(franja);
     await franja.getByRole("button", { name: "Cerrar caja" }).click();
     const dialogo = page.getByRole("dialog", { name: "Cerrar caja" });
-    await expect(dialogo).toContainText("1 pedido queda sin cobrar");
+    await expect(dialogo).toContainText("2 pedidos quedan sin cobrar");
     await expect(dialogo.getByRole("button", { name: "Confirmar cierre" })).toBeDisabled();
     await dialogo.getByLabel(/Cuánto efectivo hay en el cajón/).fill(String(esperado));
     await expect(dialogo).toContainText("Cuadra");
@@ -243,7 +261,7 @@ test("abrir caja, cobrar mixto, dividir por platos, corregir un pago y cerrar co
     await expect(page.getByRole("heading", { name: "La caja está cerrada" })).toBeVisible();
     const resumen = page.getByRole("region", { name: "Resumen del cierre" });
     await expect(resumen).toContainText("Falta S/ 5.00");
-    await expect(resumen).toContainText("1 pago anulado");
+    await expect(resumen).toContainText("2 pagos anulados");
 
     const turno = (await (await request.get("/api/caja/actual", con(tokenCaja))).json()).turno;
     expect(turno).toBeNull();

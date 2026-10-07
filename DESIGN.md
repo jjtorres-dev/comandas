@@ -431,10 +431,15 @@ a entregar después de cobrar (72 px, sobre `listo`).
 
 - **Tres columnas:** Por cobrar (lista), Cuenta y Cobro. En celular, la lista
   deja su lugar a la cuenta y el cobro, uno debajo del otro.
-- **Método de pago:** cuatro botones de 64 px con su tecla a la vista (E, Y,
-  P, T). Ninguno viene elegido; el elegido es `primario` con borde `tinta` y
-  check. "Cobrar" siempre lleva el monto escrito y, apagado, dice debajo qué
-  falta.
+- **El cobro va en pasos numerados y a la vista:** "1. ¿Cómo paga?" sobre
+  cuatro botones de 64 px con su tecla (E, Y, P, T); en efectivo aparece
+  "2. ¿Cuánto entrega?"; y el botón es "3. Cobrar S/ 96.00" (o "2." si no es
+  efectivo). Ningún método viene elegido: mientras no lo haya, los cuatro
+  llevan borde `primario-profundo` de 3 px con halo `primario-suave` y el
+  botón dice "Primero elige cómo paga". El elegido es `primario` con borde
+  `tinta` y un check en la esquina.
+- **Cuenta reabierta:** un pedido de mesa ya pagado al que se le anula un pago
+  vuelve a Por cobrar como "Mesa 3 · cuenta reabierta" y no ocupa la mesa.
 - **Forma de cobro:** tres opciones juntas con una siempre elegida (Todo junto,
   Por platos, Partes iguales), como en las hojas del mozo.
 - **Diferencia de caja:** nunca un número con signo. "Cuadra" sobre `listo`,

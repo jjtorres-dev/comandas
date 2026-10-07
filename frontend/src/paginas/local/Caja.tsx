@@ -194,14 +194,13 @@ function FilaPorCobrar({ pedido, elegido, alElegir }: { pedido: Pedido; elegido:
     >
       <span className={`flex items-center gap-2 px-3 py-1.5 text-lg font-bold text-tinta ${tipo.clases}`}>
         <tipo.icono aria-hidden="true" weight="bold" className="size-6 shrink-0" />
-        <span className="min-w-0 flex-1 truncate">{nombreDeTipo(pedido)}</span>
+        <span className="min-w-0 flex-1 leading-tight wrap-anywhere">{nombreDeTipo(pedido)}</span>
         <span className="tabular-nums">#{pedido.numero}</span>
       </span>
       <span className="flex items-center gap-3 px-3 py-2">
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="text-2xl font-bold text-tinta tabular-nums">{soles(centimos(pedido.saldoPendiente))}</span>
           {parcial && <span className="text-base font-bold text-marino tabular-nums">Falta de {soles(centimos(pedido.total))}</span>}
-          {pedido.mesaLiberada && <span className="text-base font-bold text-marino">La mesa ya tiene otro pedido</span>}
         </span>
         <PildoraEstado estado={pedido.estado} />
       </span>

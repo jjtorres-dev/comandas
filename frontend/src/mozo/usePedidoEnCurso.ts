@@ -40,7 +40,7 @@ export function usePedidoEnCurso(clave: string): PedidoEnCurso {
     cargando = pedidos.isPending;
     if (pedido && !pedido.pagado) {
       destino = pedido.mesa
-        ? { tipo: "MESA", mesaId: pedido.mesa.id, nombre: pedido.mesa.nombre }
+        ? { tipo: "MESA", mesaId: pedido.mesa.id, nombre: `${pedido.mesa.nombre}${pedido.mesaLiberada ? " · cuenta reabierta" : ""}` }
         : { tipo: "PARA_LLEVAR", nombre: `Para llevar #${pedido.numero}` };
       pedidoId = pedido.id;
     }

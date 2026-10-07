@@ -88,6 +88,10 @@ export function FormularioCobro({ objetivo, bloqueo, alCobrar }: Props) {
     });
   };
 
+  // Con un solo pago: sin método, el botón dice qué falta; con método, lleva su número de paso
+  const sinMetodo = !mixto && lineas[0].metodo === null;
+  const paso = mixto ? "" : lineas[0].metodo === "EFECTIVO" ? "3. " : "2. ";
+
   const plegada = (linea: Linea) => mixto && linea.id !== activa && linea.metodo !== null;
 
   // ---------- Validación ----------
@@ -190,7 +194,8 @@ export function FormularioCobro({ objetivo, bloqueo, alCobrar }: Props) {
             }}
             className={mixto ? `flex flex-col gap-3 rounded-control border-2 p-3 ${linea.id === activa ? "border-marino" : "border-borde"}` : "flex flex-col gap-3"}
           >
-            <legend className="sr-only">{mixto ? `Pago ${indice + 1}` : "Cómo paga"}</legend>
+            {/* Con un solo pago, los pasos van numerados y a la vista: 1 cómo paga, 2 cuánto entrega, 3 cobrar */}
+            <legend className={mixto ? "sr-only" : "mb-3 text-2xl font-bold text-tinta"}>{mixto ? `Pago ${indice + 1}` : "1. ¿Cómo paga?"}</legend>
             {mixto && (
               <div className="flex items-center gap-3">
                 <label htmlFor={`${idBase}-monto-${linea.id}`} className="text-xl font-bold text-tinta">
@@ -245,16 +250,26 @@ export function FormularioCobro({ objetivo, bloqueo, alCobrar }: Props) {
                     aria-pressed={elegido}
                     aria-keyshortcuts={metodo.tecla}
                     onClick={() => elegirMetodo(linea.id, metodo.id)}
-                    className={`presionable flex min-h-16 cursor-pointer items-center gap-3 rounded-control border-2 px-3 text-2xl font-bold ${
-                      elegido ? "border-tinta bg-primario text-tinta" : "border-borde-fuerte bg-superficie text-marino hover:bg-primario-suave"
+                    className={`presionable relative flex min-h-16 cursor-pointer items-center gap-3 rounded-control border-2 px-3 text-2xl font-bold ${
+                      elegido
+                        ? "border-tinta bg-primario text-tinta"
+                        : linea.metodo === null
+                          ? // Todavía sin método: borde turquesa grueso y halo, "toca uno de estos"
+                            "border-[3px] border-primario-profundo bg-superficie text-tinta ring-4 ring-primario-suave hover:bg-primario-suave"
+                          : "border-borde-fuerte bg-superficie text-marino hover:bg-primario-suave"
                     }`}
                   >
                     {/* La tecla que lo elige, a la vista */}
                     <kbd aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-interior border-2 border-current font-sans text-lg">
                       {metodo.tecla}
                     </kbd>
-                    <span className="min-w-0 flex-1 truncate text-left">{metodo.nombre}</span>
-                    {elegido && <CheckIcon aria-hidden="true" weight="bold" className="size-6 shrink-0" />}
+                    <span className="min-w-0 flex-1 text-left">{metodo.nombre}</span>
+                    {/* El check va en la esquina: no le quita ancho al nombre */}
+                    {elegido && (
+                      <span className="absolute -top-2.5 -right-2.5 grid size-7 place-items-center rounded-full border-2 border-tinta bg-superficie">
+                        <CheckIcon aria-hidden="true" weight="bold" className="size-4" />
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -262,9 +277,9 @@ export function FormularioCobro({ objetivo, bloqueo, alCobrar }: Props) {
 
             {linea.metodo === "EFECTIVO" && !plegada(linea) && (
               <div className="flex flex-col gap-2.5">
-                <div className="flex items-center gap-3">
-                  <label htmlFor={`${idBase}-recibido-${linea.id}`} className="flex-1 text-xl font-bold text-tinta">
-                    Recibido
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+                  <label htmlFor={`${idBase}-recibido-${linea.id}`} className={`font-bold whitespace-nowrap text-tinta ${mixto ? "text-xl" : "text-2xl"}`}>
+                    {mixto ? "¿Cuánto entrega?" : "2. ¿Cuánto entrega?"}
                   </label>
                   <input
                     id={`${idBase}-recibido-${linea.id}`}
@@ -279,7 +294,7 @@ export function FormularioCobro({ objetivo, bloqueo, alCobrar }: Props) {
                     value={linea.recibido}
                     onChange={(e) => editar(linea.id, { recibido: e.target.value })}
                     onFocus={(e) => e.target.select()}
-                    className="h-16 w-44 rounded-control border-2 border-borde-fuerte bg-superficie px-3 text-right text-3xl font-bold text-tinta tabular-nums placeholder:text-texto-suave focus:border-marino"
+                    className="h-16 w-36 min-w-0 flex-1 rounded-control border-2 border-borde-fuerte bg-superficie px-3 text-right text-3xl font-bold text-tinta tabular-nums placeholder:text-texto-suave focus:border-marino"
                   />
                 </div>
                 <div className="grid grid-cols-4 gap-2">
@@ -355,12 +370,12 @@ export function FormularioCobro({ objetivo, bloqueo, alCobrar }: Props) {
           disabled={falta !== null || cobrando}
           aria-busy={cobrando || undefined}
           onClick={() => void cobrar()}
-          className="presionable inline-flex min-h-20 cursor-pointer items-center justify-center gap-3 rounded-control bg-primario px-6 text-3xl font-bold text-tinta hover:bg-primario-presionado disabled:cursor-not-allowed disabled:border-2 disabled:border-borde-fuerte disabled:bg-fondo disabled:text-marino"
+          className={`presionable inline-flex min-h-20 cursor-pointer items-center justify-center gap-3 rounded-control bg-primario px-4 text-center leading-tight font-bold text-tinta ${sinMetodo ? "text-2xl" : "text-3xl"} hover:bg-primario-presionado disabled:cursor-not-allowed disabled:border-2 disabled:border-borde-fuerte disabled:bg-fondo disabled:text-marino`}
         >
-          Cobrar {soles(objetivo)}
+          {sinMetodo ? "Primero elige cómo paga" : `${paso}Cobrar ${soles(objetivo)}`}
         </button>
         <p aria-live="polite" className="min-h-7 text-center text-lg font-bold text-marino">
-          {falta ?? "Enter para cobrar"}
+          {sinMetodo && !bloqueo ? "Toca un método o pulsa su letra: E, Y, P o T" : (falta ?? "Enter para cobrar")}
         </p>
       </div>
     </div>

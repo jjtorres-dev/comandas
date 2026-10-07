@@ -13,7 +13,7 @@ import { useCambio } from "../../lib/useCambio";
 import { useCancelarItem, useEntregarListos } from "../../mozo/acciones";
 import { useMozo } from "../../mozo/almacen";
 import { FranjaCola } from "../../mozo/FranjaCola";
-import { listosDe } from "../../mozo/useAvisosListo";
+import { listosDe, nombreDePedido } from "../../mozo/useAvisosListo";
 import { PantallaSinDestino } from "./TomarPedido";
 
 // Los items con el mismo idRonda se pidieron juntos
@@ -49,7 +49,8 @@ export function DetallePedido() {
     return <PantallaSinDestino cargando={pedidos.isPending} />;
   }
 
-  const clave = pedido.mesa ? `mesa-${pedido.mesa.id}` : `pedido-${pedido.id}`;
+  // Una cuenta reabierta ya no es "la mesa": lo que se le agregue va a ese pedido, por su id
+  const clave = pedido.mesa && !pedido.mesaLiberada ? `mesa-${pedido.mesa.id}` : `pedido-${pedido.id}`;
   const listos = listosDe(pedido);
   const cantidadListos = listos.reduce((suma, i) => suma + i.cantidad, 0);
   const rondaEnCola = cola.some((e) => e.pedidoId === pedido.id);
@@ -59,7 +60,7 @@ export function DetallePedido() {
     <div className="flex min-h-dvh flex-col">
       <div className="sticky top-0 z-20">
         <CabeceraPantalla
-          titulo={pedido.mesa?.nombre ?? "Para llevar"}
+          titulo={pedido.mesa ? nombreDePedido(pedido) : "Para llevar"}
           detalle={`Pedido #${pedido.numero} · ${haceCuanto(pedido.creadoEn, ahora)}`}
           volverA="/mozo/mesas"
           volverTexto="Volver a Mesas"

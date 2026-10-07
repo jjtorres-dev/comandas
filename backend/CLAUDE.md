@@ -108,8 +108,9 @@ está en `../CLAUDE.md`. Todos los comandos de este archivo se ejecutan desde
 - Un pago nunca se borra: se anula (`anuladoEn`, `anuladoPorId`,
   `motivoAnulacion`) o se le cambia el método, solo mientras su turno siga
   abierto, y cada corrección deja una fila en `PagoCambio`. **Toda consulta que
-  sume pagos filtra `anuladoEn: null`.** Anular reabre el pedido; si su mesa ya
-  tiene otro pedido abierto queda con `Pedido.mesaLiberada` y no la ocupa.
+  sume pagos filtra `anuladoEn: null`.** Anular el pago de un pedido de mesa ya
+  pagado lo reabre con `Pedido.mesaLiberada`: sigue por cobrar, pero nunca
+  vuelve a ocupar la mesa.
 
 ## Reglas del modelo de datos
 

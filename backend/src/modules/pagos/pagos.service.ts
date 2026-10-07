@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { EstadoItem, EstadoPedido, MetodoPago, Prisma, TipoPedido } from "../../generated/prisma/client";
+import { EstadoItem, MetodoPago, Prisma, TipoPedido } from "../../generated/prisma/client";
 import { CERO, dinero, sumar } from "../../lib/dinero";
 import { conflicto, noEncontrado, solicitudInvalida } from "../../lib/errores";
 import { prisma, type Tx } from "../../lib/prisma";
@@ -8,7 +8,6 @@ import { fechaHoraLocal } from "../../lib/tiempo";
 import type { Sesion } from "../../middlewares/auth";
 import { bloquearTurnoAbierto, publicarCaja, serializarPago } from "../caja/caja.service";
 import {
-  bloquearNegocio,
   bloquearPedido,
   exigirNoCancelado,
   obtenerCompleto,
@@ -304,9 +303,6 @@ export async function anularPago(sesion: Sesion, pedidoId: string, pagoId: strin
   const { negocioId } = sesion;
 
   const resultado = await prisma.$transaction(async (tx) => {
-    // Mismo candado que al crear un pedido: mientras se decide si la mesa está
-    // tomada, nadie puede abrirle otro
-    await bloquearNegocio(tx, negocioId);
     const { pedido, pago, turnoId } = await pagoCorregible(tx, negocioId, pedidoId, pagoId);
 
     await tx.pago.update({
@@ -323,22 +319,12 @@ export async function anularPago(sesion: Sesion, pedidoId: string, pagoId: strin
     });
 
     if (pedido.pagado) {
-      // Si su mesa ya tiene otro pedido abierto, este vuelve a "por cobrar" sin ocuparla
-      const mesaTomada =
-        pedido.mesaId !== null &&
-        (await tx.pedido.count({
-          where: {
-            negocioId,
-            mesaId: pedido.mesaId,
-            id: { not: pedidoId },
-            pagado: false,
-            mesaLiberada: false,
-            estado: { not: EstadoPedido.CANCELADO },
-          },
-        })) > 0;
+      // La cuenta se reabre, pero el pedido nunca vuelve a ocupar su mesa: al
+      // pagarse la mesa quedó libre, y un pedido nuevo ahí no debe entrar como
+      // ronda de este. Sigue en "por cobrar" como "cuenta reabierta".
       await tx.pedido.update({
         where: { id: pedidoId },
-        data: { pagado: false, pagadoEn: null, ...(mesaTomada ? { mesaLiberada: true } : {}) },
+        data: { pagado: false, pagadoEn: null, ...(pedido.mesaId !== null ? { mesaLiberada: true } : {}) },
       });
     }
     await recalcular(tx, pedidoId);

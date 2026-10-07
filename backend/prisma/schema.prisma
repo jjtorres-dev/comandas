@@ -273,8 +273,8 @@ model Pedido {
   descuento    Decimal @default(0) @db.Decimal(10, 2)
   total        Decimal @default(0) @db.Decimal(10, 2)
   pagado       Boolean @default(false)
-  // true si el pedido volvió a quedar por cobrar (se anuló un pago) cuando su
-  // mesa ya tenía otro pedido abierto: sigue debiendo, pero no ocupa la mesa
+  // true si el pedido de mesa ya estuvo pagado y su cuenta se reabrió (se anuló
+  // un pago): sigue debiendo, pero nunca vuelve a ocupar la mesa
   mesaLiberada Boolean @default(false)
 
   // Lo genera el celular del mozo: si se cae la señal y reintenta,

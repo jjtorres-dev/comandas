@@ -9,7 +9,7 @@ import type { Pedido } from "../lib/tipos";
 import { avisarListo, prepararSonido } from "./avisos";
 
 export const nombreDePedido = (pedido: Pedido): string =>
-  pedido.mesa?.nombre ?? (pedido.tipo === "PARA_LLEVAR" ? `Para llevar #${pedido.numero}` : `Delivery #${pedido.numero}`);
+  (pedido.mesa ? `${pedido.mesa.nombre}${pedido.mesaLiberada ? " · cuenta reabierta" : ""}` : null) ?? (pedido.tipo === "PARA_LLEVAR" ? `Para llevar #${pedido.numero}` : `Delivery #${pedido.numero}`);
 
 export const listosDe = (pedido: Pedido) => pedido.items.filter((i) => i.estado === "LISTO");
 

@@ -118,7 +118,7 @@ Lo devuelven todos los endpoints que crean o modifican un pedido, `GET
 | `tipo` | `MESA`, `DELIVERY` o `PARA_LLEVAR` |
 | `estado` | `PENDIENTE`, `PREPARANDO`, `LISTO`, `EN_CAMINO`, `ENTREGADO`, `CANCELADO` (ver abajo) |
 | `mesa` | `{ id, nombre }` en `MESA`; `null` en los demás |
-| `mesaLiberada` | `true` si el pedido volvió a quedar por cobrar (se anuló un pago) cuando su mesa ya tenía otro pedido abierto: sigue debiendo, pero no ocupa la mesa |
+| `mesaLiberada` | `true` si el pedido de mesa ya estuvo pagado y su cuenta se reabrió al anular un pago ("cuenta reabierta"): sigue debiendo y figura entre los activos, pero no ocupa la mesa |
 | `mozo` | `{ id, nombre }` de quien creó el pedido (sea cual sea su rol) |
 | `cliente` | `{ nombre, telefono }` (cualquiera puede ser `null`), o `null` si no hay datos. Siempre `null` en `MESA` |
 | `direccionEntrega`, `referenciaEntrega` | Solo `DELIVERY`. Copia del momento del pedido |
@@ -783,9 +783,11 @@ El pago estuvo mal (monto equivocado, pedido equivocado).
 El pago queda marcado (`anulado`, `anuladoEn`, `anuladoPor`, `motivoAnulacion`) y
 deja de contar en la cuenta, en el pedido y en el resumen del turno, que suma 1
 a `pagosAnulados`. Si el pedido estaba pagado, vuelve a tener saldo pendiente y
-reaparece entre los activos. Si era de una mesa que ya tiene otro pedido abierto,
-queda con `mesaLiberada: true`: se cobra igual, pero no ocupa la mesa. Si la
-mesa estaba libre, vuelve a figurar ocupada por ese pedido.
+reaparece entre los activos. Un pedido de mesa en ese caso queda con
+`mesaLiberada: true` y **nunca vuelve a ocupar su mesa**, esté libre o no: un
+pedido nuevo en esa mesa es un pedido nuevo, no una ronda del anterior. Si el
+pedido todavía no estaba pagado (se anula un pago parcial), sigue ocupando la
+mesa como antes.
 
 **Errores (las dos rutas)**
 

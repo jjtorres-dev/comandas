@@ -129,5 +129,6 @@ export type Previos = Record<string, EstadoItem>;
 
 export const nombreDeTipo = (pedido: Pedido): string =>
   pedido.tipo === "MESA"
-    ? (pedido.mesa?.nombre ?? "Mesa")
+    ? // Cuenta reabierta: se anuló un pago de un pedido ya pagado. Debe, pero ya no ocupa la mesa.
+      `${pedido.mesa?.nombre ?? "Mesa"}${pedido.mesaLiberada ? " · cuenta reabierta" : ""}`
     : `${pedido.tipo === "DELIVERY" ? "Delivery" : "Para llevar"}${pedido.cliente?.nombre ? ` · ${pedido.cliente.nombre}` : ""}`;

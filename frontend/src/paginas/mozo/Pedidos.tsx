@@ -7,6 +7,7 @@ import { consultaPedidosActivos } from "../../lib/consultas";
 import { haceCuanto, plural, soles, useAhora } from "../../lib/formato";
 import type { Pedido } from "../../lib/tipos";
 import { useEntregarListos } from "../../mozo/acciones";
+import { nombreDePedido } from "../../mozo/useAvisosListo";
 import { useSesion } from "../../sesion/contexto";
 
 const cantidadDe = (pedido: Pedido, filtro: (estado: string) => boolean) =>
@@ -59,7 +60,7 @@ export function Pedidos() {
                   <Link to={`/mozo/pedido/${pedido.id}`} className="presionable -m-2 flex items-center gap-3 rounded-control p-2">
                     <div className="min-w-0 flex-1 text-tinta">
                       <h2 className="truncate text-2xl leading-tight font-bold">
-                        {pedido.mesa?.nombre ?? `Para llevar${pedido.cliente?.nombre ? ` · ${pedido.cliente.nombre}` : ""}`}
+                        {pedido.mesa ? nombreDePedido(pedido) : `Para llevar${pedido.cliente?.nombre ? ` · ${pedido.cliente.nombre}` : ""}`}
                       </h2>
                       <p className="text-lg tabular-nums">
                         #{pedido.numero} · {haceCuanto(pedido.creadoEn, ahora)} · {soles(pedido.total)}

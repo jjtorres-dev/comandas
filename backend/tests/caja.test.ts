@@ -515,7 +515,7 @@ describe("cobrados del turno y corrección de pagos", () => {
     const res = await anular(caja, pedido.id, pago.id, { motivo: "Monto equivocado" });
     expect(res.status).toBe(200);
     expect(res.body.pago).toMatchObject({ anulado: true, motivoAnulacion: "Monto equivocado", anuladoPor: { nombre: "cocina" } });
-    expect(res.body.pedido).toMatchObject({ pagado: false, pagadoEn: null, totalPagado: "0.00", saldoPendiente: "53.00", mesaLiberada: false });
+    expect(res.body.pedido).toMatchObject({ pagado: false, pagadoEn: null, totalPagado: "0.00", saldoPendiente: "53.00", mesaLiberada: true });
     expect(res.body.turno).toMatchObject({
       totalesPorMetodo: { EFECTIVO: "0.00" },
       totalCobrado: "0.00",
@@ -525,12 +525,17 @@ describe("cobrados del turno y corrección de pagos", () => {
       pagosAnulados: 1,
     });
 
-    // Sigue en la base y en la cuenta, marcado; la mesa vuelve a estar ocupada por ese pedido
+    // Sigue en la base y en la cuenta, marcado. La cuenta se reabrió, pero la mesa sigue libre:
+    // un pedido nuevo ahí es un pedido nuevo, no una ronda del viejo
     expect(await prisma.pago.count({ where: { pedidoId: pedido.id } })).toBe(1);
     const laCuenta = (await cuenta(caja, pedido.id)).body.cuenta;
     expect(laCuenta).toMatchObject({ totalPagado: "0.00", saldoPendiente: "53.00", pagado: false });
     expect(laCuenta.pagos[0]).toMatchObject({ anulado: true, corregible: false });
-    expect((await mesas())[0]).toMatchObject({ estado: "ocupada", pedido: { id: pedido.id } });
+    expect((await mesas())[0]).toMatchObject({ estado: "libre", pedido: null });
+    const nuevo = await crearPedido(mozo, { mesaId: a.mesas[0].id, items: [{ varianteId: a.v.gaseosa }] });
+    expect(nuevo.status).toBe(201);
+    expect(nuevo.body.pedido.id).not.toBe(pedido.id);
+    expect((await mesas())[0]).toMatchObject({ estado: "ocupada", pedido: { id: nuevo.body.pedido.id } });
     expect((await request(app).get(`/api/pedidos/${pedido.id}/nota-venta`).set(conToken(caja))).body.texto).toContain("Pago: pendiente");
 
     expect((await anular(caja, pedido.id, pago.id, { motivo: "Otra vez" })).body.error.codigo).toBe("PAGO_ANULADO");
@@ -541,6 +546,16 @@ describe("cobrados del turno y corrección de pagos", () => {
     const otraVez = await pagar(caja, pedido.id, { pagos: [{ metodo: "YAPE", monto: 53 }] });
     expect(otraVez.body.pedido.pagado).toBe(true);
     expect((await actual(caja)).body.turno).toMatchObject({ totalCobrado: "53.00", pagosAnulados: 1 });
+  });
+
+  it("anular un pago parcial no cambia nada de la mesa: el pedido la sigue ocupando", async () => {
+    await abrir(caja);
+    const pedido = await pedidoDeMesa();
+    const pago = (await pagar(caja, pedido.id, { pagos: [{ metodo: "YAPE", monto: 20 }] })).body.pagos[0];
+
+    const res = await anular(caja, pedido.id, pago.id, { motivo: "Monto equivocado" });
+    expect(res.body.pedido).toMatchObject({ pagado: false, saldoPendiente: "53.00", mesaLiberada: false });
+    expect((await mesas())[0]).toMatchObject({ estado: "ocupada", pedido: { id: pedido.id } });
   });
 
   it("si la mesa ya tiene otro pedido, el anulado vuelve a por cobrar sin ocuparla", async () => {
