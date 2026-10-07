@@ -243,6 +243,14 @@ async function crearNegocio(tx: Tx, usuarios: { usuario: string; nombre: string;
 // ---------- MAIN ----------
 
 async function main() {
+  // El seed borra pedidos, pagos y turnos de caja: nunca debe correr en producción
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "Seed abortado: NODE_ENV=production. Este seed borra y recrea todos los datos de " +
+        `"${NOMBRE_NEGOCIO}" y solo puede ejecutarse en desarrollo.`,
+    );
+  }
+
   // El hash se calcula fuera de la transacción porque bcrypt es lento
   const usuarios = await Promise.all(
     USUARIOS.map(async ({ password, ...u }) => ({
