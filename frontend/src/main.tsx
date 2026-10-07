@@ -20,8 +20,11 @@ createRoot(document.getElementById("root")!).render(
           </ProveedorSesion>
         </BrowserRouter>
         <Toaster
-          position="top-center"
-          mobileOffset={{ top: 76 }}
+          // Abajo, justo encima de la navegación o de la barra del pedido: no
+          // tapan controles. Cada barra publica su alto en --aviso-abajo.
+          position="bottom-center"
+          offset={{ bottom: "var(--aviso-abajo, 16px)" }}
+          mobileOffset={{ bottom: "var(--aviso-abajo, 16px)" }}
           toastOptions={{
             classNames: {
               toast: "!rounded-control !border-2 !border-borde !font-sans !text-lg !font-bold !text-tinta",

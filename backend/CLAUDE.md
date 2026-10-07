@@ -77,6 +77,8 @@ está en `../CLAUDE.md`. Todos los comandos de este archivo se ejecutan desde
   estado y si quedó pagado) y `publicar` después del commit.
 - Idempotencia: `Pedido.idCliente` al crear y `PedidoItem.idRonda` al agregar una
   ronda; ambos son UUID que genera el cliente. La primera ronda usa el `idCliente`.
+- Una ronda puede traer `nota`: se agrega a `Pedido.nota` con `" · "`, nunca la
+  reemplaza (un pedido nuevo que entra como ronda no pierde su nota general).
 - Errores: lanzar `ErrorApp` (`src/lib/errores.ts`); el middleware responde
   `{ error: { codigo, mensaje, ... } }` con el mensaje en español.
 - Los montos viajan en el JSON como texto con 2 decimales (`"25.00"`).

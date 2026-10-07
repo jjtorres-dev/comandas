@@ -65,13 +65,20 @@ Después, seguir `DESIGN.md`: los tokens están en `frontend/src/estilos.css`
 - Rutas: `/login`, `/mozo/*` (MOZO y ADMIN) y `/local/*` (LOCAL y ADMIN).
 - App del mozo: pestañas `/mozo/mesas`, `/mozo/pedidos` y `/mozo/perfil`, y
   pantallas de una tarea `/mozo/tomar/:clave` (`mesa-<id>`, `llevar` o
-  `pedido-<id>`), su `/resumen` y `/mozo/pedido/:id`.
+  `pedido-<id>`), su `/resumen` y `/mozo/pedido/:id`. La clave de para llevar es
+  `llevar-<id propio>`.
 - `src/mozo/almacen.ts` guarda en el dispositivo, por usuario, los borradores
   (sin enviar) y la cola (enviados sin confirmar). "Enviar a cocina" nunca
   espera al servidor: encola con su `idCliente` o `idRonda` definitivo y
   `procesarCola` reintenta sola. Toda creación de pedidos o rondas del mozo
   pasa por ahí; las líneas se editan con las funciones puras de
-  `src/mozo/lineas.ts` (las iguales se unen solas).
+  `src/mozo/lineas.ts` (las iguales se unen solas). Cada para llevar tiene su
+  propio borrador (`llevar-<id>`). Las notas de un combo se envían como texto
+  con el plato delante (`"Ceviche Simple: sin cebolla"`).
+- Hojas inferiores: `HojaInferior` se ajusta al teclado (meta viewport con
+  `interactive-widget=resizes-content` más `visualViewport`). Los avisos de
+  sonner salen abajo, sobre la barra fija de cada pantalla, que publica su alto
+  con `useEspacioAvisos`.
 - Prueba de punta a punta: `npm run e2e` desde `frontend/` (Playwright, 412×915)
   contra el entorno de desarrollo con el seed. Usa una mesa libre y la libera
   al terminar.

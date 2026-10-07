@@ -462,6 +462,11 @@ Agrega una ronda a un pedido abierto (no pagado y no cancelado). **Roles**:
 |---|---|---|
 | `idRonda` | UUID | Obligatorio. Lo genera el frontend una vez por ronda. Reenviar el mismo no duplica los items |
 | `items` | lista, 1–100 | Obligatorio. Mismo formato que al crear el pedido |
+| `nota` | texto ≤ 500 | Opcional. Se agrega a la nota del pedido, separada por `" · "` (`"Es un cumpleaños · Todo junto"`); no la reemplaza. Si el pedido no tenía nota, queda esta. Una nota idéntica a la que ya tiene el pedido no se repite, y un reintento con el mismo `idRonda` no la vuelve a agregar |
+
+La nota existe para que un pedido que se anotó como nuevo y terminó entrando
+como ronda (ver `MESA_OCUPADA`) no pierda su nota general. Tras varias rondas con
+nota, `pedido.nota` puede superar los 500 caracteres.
 
 Los items nuevos quedan al final de la comanda. Recalcula totales, estado y, en
 delivery / para llevar con tapers automáticos, los tapers.

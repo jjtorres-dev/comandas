@@ -66,6 +66,8 @@ export const esquemaAgregarItems = z.object({
   // UUID generado por el cliente para esta ronda: reintentar no la duplica
   idRonda: z.uuid(),
   items: esquemaItems,
+  // Nota general de esta ronda: se suma a la nota del pedido, no la reemplaza
+  nota: textoOpcional(500),
 });
 
 // CANCELADO no entra aquí: cancelar tiene su propia ruta y sus propias reglas

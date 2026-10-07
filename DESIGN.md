@@ -341,7 +341,19 @@ borde, nunca en naranja.
 Para una decisión corta (variante, combo, notas, cola, mesa ocupada): un
 `<dialog>` modal anclado abajo, con título, botón de cerrar de 48 px, cuerpo
 desplazable y acciones fijas al pie. Sube en 280 ms con curva de cajón y baja
-en 180 ms; con movimiento reducido solo cambia la opacidad.
+en 180 ms; con movimiento reducido solo cambia la opacidad. Con el teclado
+abierto ocupa todo el alto visible y su pie queda encima del teclado: el botón
+de acción nunca se tapa.
+
+Dentro de una hoja las preguntas van en el orden de la decisión, de arriba
+abajo. En las notas: a cuántas unidades aplica ("¿Para los 2 o solo para 1?"),
+en un combo a qué plato, y recién después qué nota. Una pregunta de dos
+respuestas se muestra como dos opciones juntas con una siempre elegida.
+
+### Avisos
+Los avisos (sonner) salen abajo, justo encima de la navegación inferior o de
+la barra del pedido, y nunca tapan un control. El de "listo" es lima con
+campana; su botón de acción mide 48 px.
 
 ### Barra de pedido
 Fija abajo con la sombra Barra: un solo botón de 64 px. En la carta dice

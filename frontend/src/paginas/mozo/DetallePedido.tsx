@@ -1,3 +1,4 @@
+import { useEspacioAvisos } from "../../lib/useEspacioAvisos";
 import { BellRingingIcon, CheckIcon, CircleNotchIcon, CloudArrowUpIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router";
@@ -26,6 +27,7 @@ export function DetallePedido() {
   const { id = "" } = useParams();
   const pedidos = useQuery(consultaPedidosActivos);
   const ahora = useAhora();
+  const barraAvisos = useEspacioAvisos();
   const { cola, borradores } = useMozo();
   const entregar = useEntregarListos();
   const cancelar = useCancelarItem(id);
@@ -121,7 +123,7 @@ export function DetallePedido() {
         <Totales pedido={pedido} />
       </main>
 
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t-2 border-borde bg-superficie px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-barra">
+      <div ref={barraAvisos} className="fixed inset-x-0 bottom-0 z-20 border-t-2 border-borde bg-superficie px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-barra">
         <div className="mx-auto max-w-2xl">
           {pedido.pagado ? (
             <p className="grid min-h-16 place-items-center text-center text-lg font-bold text-marino">

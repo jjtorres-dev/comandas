@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { consultaMesas, consultaPedidosActivos } from "../lib/consultas";
-import { type Borrador, type Destino, useMozo } from "./almacen";
+import { type Borrador, type Destino, esParaLlevar, PARA_LLEVAR, useMozo } from "./almacen";
 
 export type PedidoEnCurso = {
   clave: string;
@@ -26,8 +26,8 @@ export function usePedidoEnCurso(clave: string): PedidoEnCurso {
   let pedidoId: string | null = null;
   let cargando = false;
 
-  if (clave === "llevar") {
-    destino = { tipo: "PARA_LLEVAR", nombre: "Para llevar" };
+  if (esParaLlevar(clave)) {
+    destino = PARA_LLEVAR;
   } else if (clave.startsWith("mesa-")) {
     const mesa = mesas.data?.find((m) => m.id === clave.slice(5));
     cargando = mesas.isPending;

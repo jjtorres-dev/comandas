@@ -22,28 +22,8 @@ async function pedidoDeMesa(api: APIRequestContext, token: string, mesaId: strin
 
 const boton = (page: Page, nombre: string | RegExp) => page.getByRole("button", { name: nombre });
 
-let mesa: { id: string; nombre: string };
-
-test.beforeAll(async ({ request }) => {
-  const token = await tokenDe(request, "mozo", "mozo123");
-  const { mesas } = await (await request.get("/api/mesas", con(token))).json();
-  const libre = mesas.find((m: { estado: string }) => m.estado === "libre");
-  expect(libre, "Hace falta una mesa libre. Cobra o cancela un pedido, o corre `npm run db:seed` en backend/").toBeTruthy();
-  mesa = libre;
-});
-
-// La mesa queda libre para la siguiente corrida: el dueño cancela lo pedido
-test.afterAll(async ({ request }) => {
-  if (!mesa) return;
-  const token = await tokenDe(request, "admin", "admin123");
-  const pedido = await pedidoDeMesa(request, token, mesa.id);
-  for (const item of pedido?.items ?? []) {
-    if (item.estado !== "CANCELADO") await request.patch(`/api/pedidos/${pedido!.id}/items/${item.id}/cancelar`, con(token));
-  }
-});
-
-test("el mozo toma un pedido, agrega una ronda sin red y recibe el aviso de listo", async ({ page, context, request }) => {
-  // El negocio ya está recordado en el equipo, y la vibración se registra para comprobarla
+// El negocio ya está recordado en el equipo, y la vibración se registra para comprobarla
+async function entrarComoMozo(page: Page) {
   await page.addInitScript(() => {
     localStorage.setItem("comandas.negocio", "valentina");
     Object.defineProperty(Navigator.prototype, "vibrate", {
@@ -55,14 +35,41 @@ test("el mozo toma un pedido, agrega una ronda sin red y recibe el aviso de list
       },
     });
   });
+  await page.goto("/login");
+  await page.getByLabel("Usuario").fill("mozo");
+  await page.getByRole("textbox", { name: "Contraseña" }).fill("mozo123");
+  await boton(page, "Entrar").click();
+  await expect(page).toHaveURL(/\/mozo\/mesas/);
+}
 
-  await test.step("entra como mozo", async () => {
-    await page.goto("/login");
-    await page.getByLabel("Usuario").fill("mozo");
-    await page.getByRole("textbox", { name: "Contraseña" }).fill("mozo123");
-    await boton(page, "Entrar").click();
-    await expect(page).toHaveURL(/\/mozo\/mesas/);
-  });
+async function cancelarTodo(api: APIRequestContext, token: string, pedido: Pedido | undefined) {
+  for (const item of pedido?.items ?? []) {
+    if (item.estado !== "CANCELADO") await api.patch(`/api/pedidos/${pedido!.id}/items/${item.id}/cancelar`, con(token));
+  }
+}
+
+let mesa: { id: string; nombre: string };
+// Segunda mesa libre, para la prueba de mesa ocupada
+let otraMesa: { id: string; nombre: string };
+
+test.beforeAll(async ({ request }) => {
+  const token = await tokenDe(request, "mozo", "mozo123");
+  const { mesas } = await (await request.get("/api/mesas", con(token))).json();
+  const libres = mesas.filter((m: { estado: string }) => m.estado === "libre");
+  expect(libres.length, "Hacen falta dos mesas libres. Cobra o cancela pedidos, o corre `npm run db:seed` en backend/").toBeGreaterThanOrEqual(2);
+  [mesa, otraMesa] = libres;
+});
+
+// La mesa queda libre para la siguiente corrida: el dueño cancela lo pedido
+test.afterAll(async ({ request }) => {
+  if (!mesa) return;
+  const token = await tokenDe(request, "admin", "admin123");
+  await cancelarTodo(request, token, await pedidoDeMesa(request, token, mesa.id));
+  await cancelarTodo(request, token, await pedidoDeMesa(request, token, otraMesa.id));
+});
+
+test("el mozo toma un pedido, agrega una ronda sin red y recibe el aviso de listo", async ({ page, context, request }) => {
+  await entrarComoMozo(page);
 
   const baldosa = page.getByRole("link", { name: new RegExp(`^${mesa.nombre}\\b`) });
 
@@ -100,18 +107,54 @@ test("el mozo toma un pedido, agrega una ronda sin red y recibe el aviso de list
     await expect(page.getByRole("link", { name: /Ver pedido/ })).toContainText("S/ 96.00");
   });
 
-  await test.step("pone una nota solo a 1 de los 2 ceviches y envía", async () => {
+  await test.step("nota solo a 1 de los 2 ceviches: primero a cuántos, después qué nota", async () => {
     await page.getByRole("link", { name: /Ver pedido/ }).click();
     await boton(page, "Nota").first().click();
     const hojaNotas = page.getByRole("dialog", { name: "Ceviche Simple" });
-    await hojaNotas.getByRole("button", { name: "Sin cebolla" }).click();
-    await expect(hojaNotas).toContainText("¿Para los 2 o solo para 1?");
+
+    // La pregunta va arriba, antes de los chips de notas
+    const pregunta = hojaNotas.getByText("¿Para los 2 o solo para 1?");
+    const chip = hojaNotas.getByRole("button", { name: "Sin cebolla" });
+    // (se compara el orden en el documento: la hoja todavía está subiendo y las posiciones cambian)
+    const preguntaVaAntes = await pregunta.evaluate(
+      (nodo, otro) => Boolean(nodo.compareDocumentPosition(otro!) & Node.DOCUMENT_POSITION_FOLLOWING),
+      await chip.elementHandle(),
+    );
+    expect(preguntaVaAntes).toBe(true);
+
     await hojaNotas.getByRole("button", { name: "Solo para 1" }).click();
+    await chip.click();
+    await hojaNotas.getByRole("button", { name: "Guardar nota" }).click();
 
     // La línea se separó en dos: 1 con la nota y 1 sin ella
     await expect(page.getByRole("main").getByText("Ceviche Simple", { exact: true })).toHaveCount(2);
     await expect(page.getByRole("list", { name: "Notas" })).toHaveCount(1);
+  });
 
+  await test.step("nota en el combo: se elige el plato, y solo 1 de los 2 repetidos", async () => {
+    await page.getByRole("main").getByRole("listitem").filter({ hasText: "Combo Triple" }).getByRole("button", { name: "Nota" }).click();
+    const hojaNotas = page.getByRole("dialog", { name: "Combo Triple" });
+
+    // Hasta elegir el plato no hay notas que marcar
+    await expect(hojaNotas.getByText("Elige primero el plato del combo")).toBeVisible();
+    await expect(hojaNotas.getByRole("button", { name: "Sin cebolla" })).toBeHidden();
+    await expect(hojaNotas.getByRole("button", { name: "Todo el combo" })).toBeVisible();
+
+    await hojaNotas.getByRole("button", { name: "2 Ceviche Simple" }).click();
+    await hojaNotas.getByRole("button", { name: "Solo a 1" }).click();
+    await hojaNotas.getByRole("button", { name: "Sin cebolla" }).click();
+
+    await hojaNotas.getByRole("button", { name: "Arroz con Mariscos" }).click();
+    await expect(hojaNotas.getByRole("button", { name: "Solo a 1" })).toBeHidden();
+    await hojaNotas.getByLabel("Otra indicación").fill("Bien cocido");
+    await hojaNotas.getByRole("button", { name: "Guardar nota" }).click();
+
+    const combo = page.getByRole("main").getByRole("listitem").filter({ hasText: "Combo Triple" });
+    await expect(combo).toContainText("Solo 1 Ceviche Simple: sin cebolla");
+    await expect(combo).toContainText("Arroz con Mariscos: bien cocido");
+  });
+
+  await test.step("envía a cocina", async () => {
     await page.getByLabel("Nota para todo el pedido").fill("Todo junto");
     await boton(page, "Enviar a cocina").click();
     await expect(page).toHaveURL(/\/mozo\/mesas/);
@@ -123,11 +166,12 @@ test("el mozo toma un pedido, agrega una ronda sin red y recibe el aviso de list
   await test.step("cocina recibió exactamente lo anotado", async () => {
     const pedido = (await pedidoDeMesa(request, tokenMozo, mesa.id))!;
     expect(pedido.nota).toBe("Todo junto");
-    expect(pedido.items.map((i) => [i.nombreProducto, i.cantidad, i.notas.join()])).toEqual([
+    expect(pedido.items.map((i) => [i.nombreProducto, i.cantidad, i.notas.join(" | ")])).toEqual([
       ["Ceviche Simple", 1, ""],
       ["Ceviche Simple", 1, "Sin cebolla"],
       ["Chicharrón de Pota — S/ 18", 1, ""],
-      ["Combo Triple", 1, ""],
+      // En cocina la nota dice de qué plato del combo es
+      ["Combo Triple", 1, "Solo 1 Ceviche Simple: sin cebolla | Arroz con Mariscos: bien cocido"],
     ]);
     expect(pedido.items[3].componentes).toEqual(["Ceviche Simple", "Ceviche Simple", "Arroz con Mariscos"]);
   });
@@ -196,4 +240,49 @@ test("el mozo toma un pedido, agrega una ronda sin red y recibe el aviso de list
     const pedido = (await pedidoDeMesa(request, tokenMozo, mesa.id))!;
     expect(pedido.items.every((i) => i.estado === "ENTREGADO")).toBeTruthy();
   });
+});
+
+test("un pedido nuevo que entra como ronda no pierde su nota general", async ({ page, request }) => {
+  await entrarComoMozo(page);
+  const baldosa = page.getByRole("link", { name: new RegExp(`^${otraMesa.nombre}\\b`) });
+
+  await baldosa.click();
+  await boton(page, /^Leche de Tigre S/).click();
+  await page.getByRole("link", { name: /Ver pedido/ }).click();
+  await page.getByLabel("Nota para todo el pedido").fill("Apurar, tienen prisa");
+
+  // Mientras el mozo anota, el dueño abre la misma mesa desde otro equipo
+  // (y este celular todavía no se entera)
+  await page.route("**/api/mesas", (ruta) => ruta.abort());
+  const tokenAdmin = await tokenDe(request, "admin", "admin123");
+  const carta = await (await request.get("/api/carta", con(tokenAdmin))).json();
+  const gaseosa = carta.categorias
+    .flatMap((c: { productos: { nombre: string; variantes: { id: string }[] }[] }) => c.productos)
+    .find((p: { nombre: string }) => p.nombre === "Gaseosa Personal");
+  const abierto = await request.post("/api/pedidos", {
+    ...con(tokenAdmin),
+    data: {
+      tipo: "MESA",
+      mesaId: otraMesa.id,
+      idCliente: crypto.randomUUID(),
+      nota: "Es un cumpleaños",
+      items: [{ varianteId: gaseosa.variantes[0].id, cantidad: 1 }],
+    },
+  });
+  expect(abierto.status()).toBe(201);
+
+  await boton(page, "Enviar a cocina").click();
+  const hoja = page.getByRole("dialog", { name: `${otraMesa.nombre} ya tiene un pedido abierto` });
+  await expect(hoja).toBeVisible();
+  await page.unroute("**/api/mesas");
+  await hoja.getByRole("button", { name: "Agregar como ronda" }).click();
+  await expect(hoja).toBeHidden();
+  await expect(baldosa).toContainText("S/ 15.00");
+
+  // La nota del mozo se sumó a la del pedido abierto, y lo anotado entró una sola vez
+  await expect
+    .poll(async () => (await pedidoDeMesa(request, tokenAdmin, otraMesa.id))?.nota)
+    .toBe("Es un cumpleaños · Apurar, tienen prisa");
+  const pedido = (await pedidoDeMesa(request, tokenAdmin, otraMesa.id))!;
+  expect(pedido.items.map((i) => i.nombreProducto)).toEqual(["Gaseosa Personal", "Leche de Tigre"]);
 });

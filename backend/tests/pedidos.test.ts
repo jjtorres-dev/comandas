@@ -330,6 +330,29 @@ describe("rondas, estados y cancelaciones", () => {
     expect(sinIdRonda.status).toBe(400);
   });
 
+  it("la nota de una ronda se agrega a la del pedido con \" · \", sin repetirse al reintentar", async () => {
+    const conNota = await crearPedido(mozo, { mesaId: a.mesas[0].id, nota: "Es un cumpleaños", items: [{ varianteId: a.v.ceviche }] });
+    const sinNota = await crearPedido(mozo, { mesaId: a.mesas[1].id, items: [{ varianteId: a.v.ceviche }] });
+    const ronda = (pedidoId: string, cuerpo: object) =>
+      request(app).post(`/api/pedidos/${pedidoId}/items`).set(conToken(mozo)).send({ items: [{ varianteId: a.v.gaseosa, cantidad: 1 }], ...cuerpo });
+
+    const cuerpo = { idRonda: randomUUID(), nota: "  Todo junto  " };
+    const primera = await ronda(conNota.body.pedido.id, cuerpo);
+    const reintento = await ronda(conNota.body.pedido.id, cuerpo);
+    expect([primera.status, reintento.status]).toEqual([201, 200]);
+    expect(primera.body.pedido.nota).toBe("Es un cumpleaños · Todo junto");
+    expect(reintento.body.pedido.nota).toBe("Es un cumpleaños · Todo junto");
+
+    // Sin nota en la ronda, la del pedido no cambia; en un pedido sin nota, queda la de la ronda
+    const sinCambio = await ronda(conNota.body.pedido.id, { idRonda: randomUUID() });
+    expect(sinCambio.body.pedido.nota).toBe("Es un cumpleaños · Todo junto");
+    const nueva = await ronda(sinNota.body.pedido.id, { idRonda: randomUUID(), nota: "Para compartir" });
+    expect(nueva.body.pedido.nota).toBe("Para compartir");
+
+    const larga = await ronda(sinNota.body.pedido.id, { idRonda: randomUUID(), nota: "x".repeat(501) });
+    expect(larga.status).toBe(400);
+  });
+
   it("los items conservan el orden en que se pidieron, ronda tras ronda", async () => {
     // Orden deliberadamente distinto al de la carta y al alfabético
     const creado = await crearPedido(mozo, {

@@ -229,6 +229,8 @@ export async function crearPedido(
   };
 }
 
+const SEPARADOR_NOTAS = " · ";
+
 // Nueva ronda sobre un pedido abierto (no pagado y no cancelado)
 export async function agregarItems(
   sesion: Sesion,
@@ -249,6 +251,14 @@ export async function agregarItems(
 
     const filas = await prepararItems(tx, negocioId, datos.items);
     await insertarRonda(tx, pedidoId, datos.idRonda, filas);
+    // La nota de la ronda se agrega a la del pedido (un pedido que el mozo
+    // anotó como nuevo y entró como ronda no pierde su nota general)
+    if (datos.nota && datos.nota !== pedido.nota) {
+      await tx.pedido.update({
+        where: { id: pedidoId },
+        data: { nota: pedido.nota ? `${pedido.nota}${SEPARADOR_NOTAS}${datos.nota}` : datos.nota },
+      });
+    }
     await recalcularTapers(tx, pedidoId);
     await recalcular(tx, pedidoId);
 

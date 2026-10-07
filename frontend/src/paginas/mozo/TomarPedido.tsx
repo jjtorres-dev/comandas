@@ -1,3 +1,4 @@
+import { useEspacioAvisos } from "../../lib/useEspacioAvisos";
 import { ArrowRightIcon, CaretDownIcon, MinusIcon, PlusIcon, WarningIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -36,6 +37,7 @@ export function TomarPedido() {
   const categorias = useMemo(() => (carta.data?.categorias ?? []).filter((c) => c.productos.length > 0), [carta.data]);
   const platos = cantidadTotal(lineas);
   const platosCambio = useCambio(platos);
+  const barraAvisos = useEspacioAvisos();
 
   if (!destino) return <PantallaSinDestino cargando={enCurso.cargando} />;
 
@@ -92,7 +94,7 @@ export function TomarPedido() {
         )}
       </main>
 
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t-2 border-borde bg-superficie px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-barra">
+      <div ref={barraAvisos} className="fixed inset-x-0 bottom-0 z-20 border-t-2 border-borde bg-superficie px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-barra">
         <div className="mx-auto max-w-2xl">
           {platos > 0 ? (
             <Link

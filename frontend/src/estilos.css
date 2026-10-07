@@ -131,7 +131,8 @@
     inset: auto 0 0 0;
     width: 100%;
     max-width: 42rem;
-    max-height: 88dvh;
+    /* --alto-visible lo fija HojaInferior: el alto que deja libre el teclado */
+    max-height: calc(var(--alto-visible, 100dvh) * 0.88);
     margin: 0 auto;
     padding: 0;
     overflow: hidden;
@@ -145,6 +146,14 @@
       transform 180ms var(--ease-salida),
       overlay 180ms allow-discrete,
       display 180ms allow-discrete;
+  }
+  /* Teclado abierto: cada píxel cuenta, la hoja ocupa todo lo visible */
+  .hoja[data-compacta] {
+    max-height: var(--alto-visible, 100dvh);
+    border-radius: 0;
+  }
+  .hoja[data-compacta] > header {
+    padding-block: 0.25rem;
   }
   .hoja[open] {
     display: flex;

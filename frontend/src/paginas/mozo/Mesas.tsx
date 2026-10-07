@@ -7,6 +7,7 @@ import {
   ShoppingBagIcon,
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link } from "react-router";
 import { ErrorDeCarga, Esqueleto } from "../../componentes/EstadoDeCarga";
 import { PildoraEstado } from "../../componentes/PildoraEstado";
@@ -14,7 +15,7 @@ import { consultaMesas, consultaPedidosActivos } from "../../lib/consultas";
 import { haceCuanto, plural, soles, useAhora } from "../../lib/formato";
 import type { Mesa } from "../../lib/tipos";
 import { useCambio } from "../../lib/useCambio";
-import { abrirCola, type Borrador, type Envio, useMozo } from "../../mozo/almacen";
+import { abrirCola, type Borrador, claveParaLlevar, type Envio, esParaLlevar, useMozo } from "../../mozo/almacen";
 import { cantidadTotal } from "../../mozo/lineas";
 import { listosDe } from "../../mozo/useAvisosListo";
 
@@ -31,23 +32,44 @@ export function Mesas() {
   }
 
   const paraLlevar = pedidos.filter((p) => p.tipo === "PARA_LLEVAR");
-  const borradorLlevar = borradores.llevar;
+  const borradoresLlevar = Object.values(borradores).filter((b) => esParaLlevar(b.clave));
+  // "Para llevar" abre siempre un borrador nuevo, con su propio id
+  const [nuevoLlevar] = useState(claveParaLlevar);
 
   return (
     <section className="flex flex-1 flex-col gap-5">
       <h1 className="sr-only">Mesas</h1>
 
-      <Link
-        to="/mozo/tomar/llevar"
-        className="presionable flex min-h-16 items-center gap-3 rounded-control bg-primario px-5 text-xl font-bold text-tinta hover:bg-primario-presionado"
-      >
-        <ShoppingBagIcon aria-hidden="true" weight="bold" className="size-7 shrink-0" />
-        <span className="flex-1">Para llevar</span>
-        {borradorLlevar && (
-          <span className="text-lg">Falta enviar · {plural(cantidadTotal(borradorLlevar.lineas), "plato", "platos")}</span>
+      <div className="flex flex-col gap-3">
+        <Link
+          to={`/mozo/tomar/${nuevoLlevar}`}
+          className="presionable flex min-h-16 items-center gap-3 rounded-control bg-primario px-5 text-xl font-bold text-tinta hover:bg-primario-presionado"
+        >
+          <ShoppingBagIcon aria-hidden="true" weight="bold" className="size-7 shrink-0" />
+          <span className="flex-1">Para llevar</span>
+          <CaretRightIcon aria-hidden="true" weight="bold" className="size-6 shrink-0" />
+        </Link>
+        {/* Cada para llevar a medio anotar es un borrador aparte */}
+        {borradoresLlevar.length > 0 && (
+          <ul aria-label="Para llevar sin enviar" className="flex flex-col gap-3">
+            {borradoresLlevar.map((borrador) => (
+              <li key={borrador.clave}>
+                <Link
+                  to={`/mozo/tomar/${borrador.clave}`}
+                  className="presionable flex min-h-14 items-center gap-2.5 rounded-control border-2 border-dashed border-marino bg-superficie px-4 py-2 text-lg leading-tight font-bold text-marino"
+                >
+                  <NotePencilIcon aria-hidden="true" weight="bold" className="size-6 shrink-0" />
+                  <span className="min-w-0 flex-1">
+                    Para llevar{borrador.cliente.trim() ? ` · ${borrador.cliente.trim()}` : ""}: falta enviar ·{" "}
+                    {plural(cantidadTotal(borrador.lineas), "plato", "platos")}
+                  </span>
+                  <CaretRightIcon aria-hidden="true" weight="bold" className="size-5 shrink-0" />
+                </Link>
+              </li>
+            ))}
+          </ul>
         )}
-        <CaretRightIcon aria-hidden="true" weight="bold" className="size-6 shrink-0" />
-      </Link>
+      </div>
 
       {mesas.data ? (
         mesas.data.length > 0 ? (

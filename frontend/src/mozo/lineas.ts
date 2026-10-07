@@ -15,7 +15,23 @@ export type Linea = {
   notas: string[];
   // Solo combos: los platos elegidos
   componentes: OpcionCombo[];
+  // Solo combos: de qué plato es cada nota, para poder volver a editarlas.
+  // `notas` lleva lo mismo ya escrito como lo verá cocina.
+  notasCombo?: NotasCombo;
 };
+
+export type NotasDePlato = {
+  // Notas rápidas marcadas y texto libre
+  marcadas: string[];
+  libre: string;
+  // El combo trae 2 o más de este plato y la nota es solo para uno
+  soloUno: boolean;
+};
+
+// Clave: productoId del plato, o TODO_EL_COMBO
+export type NotasCombo = Record<string, NotasDePlato>;
+
+export const TODO_EL_COMBO = "todo";
 
 const MAXIMO = 99;
 
@@ -63,15 +79,41 @@ export function quitarUno(lineas: Linea[], productoId: string): Linea[] {
   return objetivo ? cambiarCantidad(lineas, objetivo.id, -1) : lineas;
 }
 
+// Platos distintos de un combo, con cuántas veces se eligió cada uno
+export function platosDe(componentes: OpcionCombo[]): (OpcionCombo & { veces: number })[] {
+  const platos = new Map<string, OpcionCombo & { veces: number }>();
+  for (const c of componentes) platos.set(c.productoId, { ...c, veces: (platos.get(c.productoId)?.veces ?? 0) + 1 });
+  return [...platos.values()];
+}
+
+const enMinuscula = (texto: string) => texto.charAt(0).toLowerCase() + texto.slice(1);
+
+// Los textos de una entrada, con las notas rápidas en el orden de la carta
+export const textosDe = (entrada: NotasDePlato | undefined, rapidas: string[]): string[] =>
+  entrada ? [...rapidas.filter((t) => entrada.marcadas.includes(t)), ...(entrada.libre.trim() ? [entrada.libre.trim()] : [])] : [];
+
+// Las notas de un combo como las verá cocina: "Ceviche Simple: sin cebolla",
+// "Solo 1 Ceviche Simple: sin cebolla", o la nota sola si es para todo el combo
+export function notasDeCombo(componentes: OpcionCombo[], notasCombo: NotasCombo, rapidas: string[]): string[] {
+  const deTodo = textosDe(notasCombo[TODO_EL_COMBO], rapidas);
+  const dePlatos = platosDe(componentes).flatMap((plato) => {
+    const entrada = notasCombo[plato.productoId];
+    const prefijo = entrada?.soloUno && plato.veces > 1 ? `Solo 1 ${plato.nombre}` : plato.nombre;
+    // La API admite hasta 100 caracteres por nota
+    return textosDe(entrada, rapidas).map((texto) => `${prefijo}: ${enMinuscula(texto)}`.slice(0, 100));
+  });
+  return [...deTodo, ...dePlatos].slice(0, 10);
+}
+
 // "una": la línea se separa en 1 unidad con las notas nuevas y el resto como estaba
-export function ponerNotas(lineas: Linea[], id: string, notas: string[], alcance: "todas" | "una"): Linea[] {
+export function ponerNotas(lineas: Linea[], id: string, notas: string[], alcance: "todas" | "una", notasCombo?: NotasCombo): Linea[] {
   return unir(
     lineas.flatMap((l) => {
       if (l.id !== id) return [l];
-      if (alcance === "todas" || l.cantidad === 1) return [{ ...l, notas }];
+      if (alcance === "todas" || l.cantidad === 1) return [{ ...l, notas, notasCombo }];
       return [
         { ...l, cantidad: l.cantidad - 1 },
-        { ...l, id: nuevoId(), cantidad: 1, notas },
+        { ...l, id: nuevoId(), cantidad: 1, notas, notasCombo },
       ];
     }),
   );

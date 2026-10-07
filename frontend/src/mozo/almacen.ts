@@ -12,8 +12,15 @@ import { nuevoId } from "./uuid";
 
 export type Destino = { tipo: "MESA"; mesaId: string; nombre: string } | { tipo: "PARA_LLEVAR"; nombre: string };
 
+export const PARA_LLEVAR: Destino = { tipo: "PARA_LLEVAR", nombre: "Para llevar" };
+
+// Cada pedido para llevar se anota en su propio borrador
+export const claveParaLlevar = (): string => `llevar-${nuevoId()}`;
+export const esParaLlevar = (clave: string): boolean => clave === "llevar" || clave.startsWith("llevar-");
+
 export type Borrador = {
-  // "mesa-<id>", "llevar" o "pedido-<id>" (ronda de un pedido para llevar)
+  // "mesa-<id>", "llevar-<id propio>" (cada para llevar tiene su borrador) o
+  // "pedido-<id>" (ronda de un pedido para llevar)
   clave: string;
   destino: Destino;
   lineas: Linea[];
@@ -147,11 +154,11 @@ export const descartarEnvio = quitarEnvio;
 export const abrirCola = (abierta: boolean) => cambiar({ colaAbierta: abierta });
 
 // El envío vuelve a ser un borrador editable (se une a lo que ya hubiera ahí)
-function devolverABorrador(envio: Envio, motivo: string | null, clave = envio.clave) {
+function devolverABorrador(envio: Envio, motivo: string | null, clave = envio.clave, destino = envio.destino) {
   const previo = estado.borradores[clave];
   const borrador: Borrador = {
     clave,
-    destino: envio.destino,
+    destino,
     lineas: unir([...(previo?.lineas ?? []), ...envio.lineas]),
     nota: previo?.nota || envio.nota,
     cliente: previo?.cliente || envio.cliente,
@@ -228,7 +235,8 @@ async function intentar(envio: Envio): Promise<Resultado> {
     if (envio.pedidoId) {
       await api<{ pedido: Pedido }>(`/pedidos/${envio.pedidoId}/items`, {
         metodo: "POST",
-        cuerpo: { idRonda: envio.id, items },
+        // La nota general de un pedido que entra como ronda se suma a la del pedido abierto
+        cuerpo: { idRonda: envio.id, items, ...(envio.nota.trim() ? { nota: envio.nota.trim() } : {}) },
         signal: AbortSignal.timeout(ESPERA_MAXIMA),
       });
     } else {
@@ -277,8 +285,13 @@ function alFallar(envio: Envio, causa: unknown): Resultado {
   }
   // Rechazo definitivo: repetirlo no cambia nada. Vuelve como borrador con el motivo.
   const pedidoCerrado = envio.pedidoId !== null && ["PEDIDO_PAGADO", "PEDIDO_CANCELADO", "NO_ENCONTRADO"].includes(error.codigo);
-  // Una ronda de un pedido para llevar que ya cerró pasa a ser un pedido nuevo
-  devolverABorrador(envio, error.message, pedidoCerrado && envio.destino.tipo === "PARA_LLEVAR" ? "llevar" : envio.clave);
+  // Una ronda de un pedido para llevar que ya cerró pasa a ser un pedido nuevo,
+  // con su propio borrador: no se mezcla con otro para llevar que se esté anotando
+  if (pedidoCerrado && envio.destino.tipo === "PARA_LLEVAR") {
+    devolverABorrador(envio, error.message, claveParaLlevar(), PARA_LLEVAR);
+  } else {
+    devolverABorrador(envio, error.message);
+  }
   void clienteDeConsultas.invalidateQueries({ queryKey: claves.pedidos });
   void clienteDeConsultas.invalidateQueries({ queryKey: claves.mesas });
   toast.error(`${envio.destino.nombre}: no se pudo enviar. ${error.message}`, { id: `rechazado-${envio.id}`, duration: 8000 });

@@ -5,6 +5,7 @@ import { NavLink, Outlet } from "react-router";
 import { Cabecera } from "../componentes/Cabecera";
 import { consultaPedidosActivos } from "../lib/consultas";
 import { useCambio } from "../lib/useCambio";
+import { useEspacioAvisos } from "../lib/useEspacioAvisos";
 import { FranjaCola } from "../mozo/FranjaCola";
 import { useSesion } from "../sesion/contexto";
 
@@ -23,6 +24,7 @@ export function LayoutMozo() {
   const conListos = pedidos.filter((p) => p.mozo.id === usuario?.id && p.items.some((i) => i.estado === "LISTO")).length;
 
   const listosCambio = useCambio(conListos);
+  const barraAvisos = useEspacioAvisos();
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -36,6 +38,7 @@ export function LayoutMozo() {
       </main>
 
       <nav
+        ref={barraAvisos}
         aria-label="Secciones"
         className="fixed inset-x-0 bottom-0 z-20 border-t-2 border-borde bg-superficie pb-[env(safe-area-inset-bottom)] shadow-barra"
       >
