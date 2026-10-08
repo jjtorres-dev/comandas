@@ -30,7 +30,15 @@ export function Dialogo({ abierto, alCerrar, titulo, children, pie, amplio = fal
   }, [abierto]);
 
   return (
-    <dialog ref={dialogo} className={`dialogo ${amplio ? "dialogo-amplio" : ""}`} aria-labelledby={idTitulo} onClose={() => abierto && alCerrar()}>
+    <dialog ref={dialogo} className={`dialogo ${amplio ? "dialogo-amplio" : ""}`} aria-labelledby={idTitulo}
+      // Escape no cierra el diálogo por su cuenta: avisa, y quien lo usa decide
+      // (puede querer preguntar antes si hay cambios sin guardar)
+      onCancel={(evento) => {
+        evento.preventDefault();
+        alCerrar();
+      }}
+      onClose={() => abierto && alCerrar()}
+    >
       <header className="flex shrink-0 items-center gap-3 border-b-2 border-borde py-2 pr-2 pl-5">
         <h2 id={idTitulo} className="min-w-0 flex-1 text-2xl leading-tight font-bold text-balance text-tinta">
           {titulo}

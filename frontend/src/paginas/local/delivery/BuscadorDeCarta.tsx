@@ -55,15 +55,13 @@ export function BuscadorDeCarta({ carta, alAgregar, campo, soloResultados = fals
     return precios.length > 1 && !producto.esCombo ? `desde ${soles(Math.min(...precios))}` : soles(precios[0]);
   };
 
-  const fila = (producto: Producto, indice: number | null) => (
+  // Un plato de la carta completa (sin buscar): se agrega con el mouse o con Tab y Enter
+  const fila = (producto: Producto) => (
     <button
       key={producto.id}
       type="button"
-      // Con el mouse también se agrega; el foco vuelve al buscador
       onClick={() => elegir(producto)}
-      className={`presionable flex min-h-12 w-full cursor-pointer items-center gap-3 rounded-interior px-3 py-1.5 text-left text-xl ${
-        indice !== null && indice === resaltado ? "bg-primario-suave font-bold text-tinta outline-2 outline-marino" : "text-tinta hover:bg-primario-suave"
-      }`}
+      className="presionable flex min-h-12 w-full cursor-pointer items-center gap-3 rounded-interior px-3 py-1.5 text-left text-xl text-tinta hover:bg-primario-suave"
     >
       <span className="min-w-0 flex-1 leading-tight font-bold">{producto.nombre}</span>
       <span className="shrink-0 text-lg text-marino tabular-nums">{producto.esCombo ? `${precioDe(producto)} · elige ${producto.comboCantidad}` : precioDe(producto)}</span>
@@ -80,6 +78,8 @@ export function BuscadorDeCarta({ carta, alAgregar, campo, soloResultados = fals
           aria-label="Buscar en la carta"
           aria-expanded={resultados.length > 0}
           aria-controls={idLista}
+          aria-autocomplete="list"
+          aria-activedescendant={resultados[resaltado] ? `${idLista}-${resaltado}` : undefined}
           autoComplete="off"
           placeholder="Buscar plato: escribe y pulsa Enter"
           value={texto}
@@ -107,12 +107,27 @@ export function BuscadorDeCarta({ carta, alAgregar, campo, soloResultados = fals
         />
       </div>
 
-      <div id={idLista}>
+      <div>
         {buscado ? (
           resultados.length > 0 ? (
-            <ul aria-label="Resultados" className="flex flex-col gap-1">
+            // Las opciones se recorren desde el campo (flechas y Enter); con el mouse, un clic
+            <ul id={idLista} role="listbox" aria-label="Resultados" className="flex flex-col gap-1">
               {resultados.map((producto, indice) => (
-                <li key={producto.id}>{fila(producto, indice)}</li>
+                <li
+                  key={producto.id}
+                  id={`${idLista}-${indice}`}
+                  role="option"
+                  aria-selected={indice === resaltado}
+                  onClick={() => elegir(producto)}
+                  className={`presionable flex min-h-12 cursor-pointer items-center gap-3 rounded-interior px-3 py-1.5 text-xl ${
+                    indice === resaltado ? "bg-primario-suave text-tinta outline-2 outline-marino" : "text-tinta hover:bg-primario-suave"
+                  }`}
+                >
+                  <span className="min-w-0 flex-1 leading-tight font-bold">{producto.nombre}</span>
+                  <span className="shrink-0 text-lg text-marino tabular-nums">
+                    {producto.esCombo ? `${precioDe(producto)} · elige ${producto.comboCantidad}` : precioDe(producto)}
+                  </span>
+                </li>
               ))}
             </ul>
           ) : (
@@ -130,7 +145,7 @@ export function BuscadorDeCarta({ carta, alAgregar, campo, soloResultados = fals
                   <h3 className="mb-1 text-lg font-bold text-texto-suave">{categoria.nombre}</h3>
                   <ul className="grid gap-x-3 sm:grid-cols-2">
                     {categoria.productos.map((producto) => (
-                      <li key={producto.id}>{fila(producto, null)}</li>
+                      <li key={producto.id}>{fila(producto)}</li>
                     ))}
                   </ul>
                 </section>

@@ -61,7 +61,7 @@ test("delivery: pedido nuevo, modificación, salida, entrega, repetir pedido y r
 
   await test.step("la carta con buscador: \"cevi\" y Enter agrega el primer resultado; el combo usa la hoja del mozo", async () => {
     await buscador.fill("cevi");
-    await expect(page.getByRole("list", { name: "Resultados" }).getByRole("button").first()).toContainText("Ceviche Simple");
+    await expect(page.getByRole("listbox", { name: "Resultados" }).getByRole("option").first()).toContainText("Ceviche Simple");
     await buscador.press("Enter");
     // El buscador queda limpio y con el foco, listo para el siguiente plato
     await expect(buscador).toHaveValue("");
@@ -124,7 +124,16 @@ test("delivery: pedido nuevo, modificación, salida, entrega, repetir pedido y r
     // El total y el vuelto se recalculan en el servidor
     await expect(dialogo.getByText("Total", { exact: true }).locator("..")).toContainText("S/ 56.00");
     await expect(dialogo.getByRole("region", { name: "Platos del pedido" })).toContainText("Gaseosa Personal");
+
+    // Un cambio a medias no se pierde en silencio: cerrar pregunta primero
+    await dialogo.getByLabel("Referencia").fill("Portón verde, tocar fuerte");
     await page.keyboard.press("Escape");
+    await expect(dialogo.getByText("Hay cambios sin guardar")).toBeVisible();
+    await dialogo.getByRole("button", { name: "Seguir aquí" }).click();
+    await dialogo.getByRole("button", { name: "Guardar entrega y pago" }).click();
+    await expect(dialogo.getByText("Cambios sin guardar")).toBeHidden();
+    await page.keyboard.press("Escape");
+    await expect(dialogo).toBeHidden();
     await expect(tarjeta(primero.numero)).toContainText("Cobrar S/ 56.00 · paga con S/ 100.00 · vuelto S/ 44.00");
 
     const [actual] = await porTelefono();
@@ -150,7 +159,7 @@ test("delivery: pedido nuevo, modificación, salida, entrega, repetir pedido y r
     const mensaje = decodeURIComponent(abiertas[0].split("?text=")[1]);
     expect(mensaje).toContain("Rosa Pérez · 987111222");
     expect(mensaje).toContain("Dirección: Jr. San Martín 245, Morales");
-    expect(mensaje).toContain("Referencia: Portón verde");
+    expect(mensaje).toContain("Referencia: Portón verde, tocar fuerte");
     expect(mensaje).toContain("https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent("Jr. San Martín 245, Morales, San Martín, Perú"));
     expect(mensaje).toContain("Cobrar S/ 56.00 en efectivo");
     expect(mensaje).toContain("Paga con S/ 100.00: lleva S/ 44.00 de vuelto");
@@ -170,7 +179,15 @@ test("delivery: pedido nuevo, modificación, salida, entrega, repetir pedido y r
     await expect(page.getByLabel("Nombre")).toHaveValue("Rosa Pérez");
     await expect(page.getByLabel("Dirección")).toHaveValue("Jr. San Martín 245");
     await expect(page.getByLabel("Distrito")).toHaveValue("Morales");
-    await expect(page.getByLabel("Referencia")).toHaveValue("Portón verde");
+    await expect(page.getByLabel("Referencia")).toHaveValue("Portón verde, tocar fuerte");
+
+    // Si el teléfono cambia a uno desconocido, los datos del cliente anterior no se quedan
+    await page.getByLabel("Celular").fill("987111223");
+    await expect(page.getByText("Cliente nuevo")).toBeVisible();
+    await expect(page.getByLabel("Dirección")).toHaveValue("");
+    await expect(page.getByLabel("Nombre")).toHaveValue("");
+    await page.getByLabel("Celular").fill("987111222");
+    await expect(page.getByLabel("Dirección")).toHaveValue("Jr. San Martín 245");
 
     const ultimo = page.getByRole("region", { name: "Último pedido" });
     await expect(ultimo).toContainText("Ceviche Simple (Sin cebolla)");

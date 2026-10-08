@@ -27,6 +27,7 @@ export function Delivery() {
   const [anotando, setAnotando] = useState(false);
   // Confirmación del último pedido enviado: el total que se le dijo al cliente
   const [enviado, setEnviado] = useState<Pedido | null>(null);
+  const [enviadoDistinto, setEnviadoDistinto] = useState(false);
   // Se guardan los ids: el pedido que se muestra es siempre el del servidor, al día
   const [modificando, setModificando] = useState<string | null>(null);
   const [cobrando, setCobrando] = useState<string | null>(null);
@@ -60,8 +61,9 @@ export function Delivery() {
     return (
       <NuevoPedido
         carta={carta.data}
-        alTerminar={(pedido) => {
+        alTerminar={(pedido, distinto = false) => {
           setEnviado(pedido);
+          setEnviadoDistinto(distinto);
           setAnotando(false);
         }}
       />
@@ -93,10 +95,12 @@ export function Delivery() {
           </kbd>
         </button>
         {enviado && (
-          <p role="status" className="flex flex-1 items-center gap-2.5 rounded-control bg-listo-suave px-4 py-3 text-xl font-bold text-tinta">
-            <CheckCircleIcon aria-hidden="true" weight="fill" className="size-7 shrink-0 text-listo-fuerte" />
+          <p role="status" className={`flex flex-1 items-center gap-2.5 rounded-control px-4 py-3 text-xl font-bold text-tinta ${enviadoDistinto ? "bg-alerta" : "bg-listo-suave"}`}>
+            <CheckCircleIcon aria-hidden="true" weight="fill" className={`size-7 shrink-0 ${enviadoDistinto ? "text-tinta" : "text-listo-fuerte"}`} />
             <span className="flex-1 tabular-nums">
               Pedido #{enviado.numero} enviado a cocina · Total {soles(centimos(enviado.total))}
+              {/* Un reintento puede devolver el pedido tal como llegó la primera vez */}
+              {enviadoDistinto && ". Ese total no coincide con lo último que anotaste: revísalo con Modificar."}
             </span>
             <button type="button" onClick={() => setEnviado(null)} className="min-h-12 cursor-pointer px-2 underline decoration-2 underline-offset-4">
               Cerrar

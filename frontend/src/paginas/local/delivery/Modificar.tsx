@@ -1,6 +1,6 @@
 import { PlusIcon, ProhibitIcon, WarningIcon, XIcon } from "@phosphor-icons/react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Boton } from "../../../componentes/Boton";
 import { BotonConfirmar } from "../../../componentes/BotonConfirmar";
 import { Campo } from "../../../componentes/Campo";
@@ -27,18 +27,42 @@ export function Modificar({ pedido, carta, alCerrar }: Props) {
   // Mientras se cierra, el diálogo conserva el último pedido que mostró
   const [visible, setVisible] = useState(pedido);
   if (pedido && pedido !== visible) setVisible(pedido);
+  // Lo que Contenido tiene sin guardar (platos por agregar, entrega o pago cambiados)
+  const sinGuardar = useRef(false);
+  const marcarPendiente = useCallback((pendiente: boolean) => {
+    sinGuardar.current = pendiente;
+  }, []);
+  const [avisando, setAvisando] = useState(false);
+  if (!pedido && avisando) setAvisando(false);
+
+  // Cerrar con algo a medias pregunta primero: nada se pierde en silencio
+  const cerrar = () => (sinGuardar.current && !avisando ? setAvisando(true) : alCerrar());
 
   return (
-    <Dialogo abierto={pedido !== null} alCerrar={alCerrar} amplio titulo={visible ? `Modificar el pedido #${visible.numero} · ${visible.cliente?.nombre ?? "Cliente"}` : ""}>
+    <Dialogo abierto={pedido !== null} alCerrar={cerrar} amplio titulo={visible ? `Modificar el pedido #${visible.numero} · ${visible.cliente?.nombre ?? "Cliente"}` : ""}>
+      {avisando && (
+        <p role="alert" className="mb-4 flex flex-wrap items-center gap-3 rounded-control bg-alerta px-4 py-2.5 text-lg font-bold text-tinta">
+          <WarningIcon aria-hidden="true" weight="fill" className="size-6 shrink-0" />
+          <span className="flex-1">Hay cambios sin guardar en este pedido.</span>
+          <button type="button" onClick={() => setAvisando(false)} className="min-h-12 cursor-pointer rounded-control bg-superficie px-4 underline decoration-2 underline-offset-4">
+            Seguir aquí
+          </button>
+          <button type="button" onClick={alCerrar} className="min-h-12 cursor-pointer px-2 underline decoration-2 underline-offset-4">
+            Salir sin guardar
+          </button>
+        </p>
+      )}
       {/* La clave reinicia lo que se estaba escribiendo al abrir otro pedido */}
-      {visible && <Contenido key={visible.id} pedido={visible} carta={carta} alCerrar={alCerrar} />}
+      {visible && <Contenido key={visible.id} pedido={visible} carta={carta} alCerrar={alCerrar} alCambiarPendiente={marcarPendiente} />}
     </Dialogo>
   );
 }
 
 const TITULO = "text-xl font-bold text-tinta";
 
-function Contenido({ pedido, carta, alCerrar }: { pedido: Pedido; carta: Carta; alCerrar: () => void }) {
+type PropsContenido = { pedido: Pedido; carta: Carta; alCerrar: () => void; alCambiarPendiente: (pendiente: boolean) => void };
+
+function Contenido({ pedido, carta, alCerrar, alCambiarPendiente }: PropsContenido) {
   const consultas = useQueryClient();
   const esDelivery = pedido.tipo === "DELIVERY";
   const refrescar = () => void consultas.invalidateQueries({ queryKey: claves.pedidos });
@@ -83,13 +107,35 @@ function Contenido({ pedido, carta, alCerrar }: { pedido: Pedido; carta: Carta; 
   const total = centimos(pedido.saldoPendiente);
   const faltaPago = faltaEnPago(pago, total);
   const faltaEntrega = esDelivery && !direccion.trim() ? "Falta la dirección" : faltaPago;
+  // Con el pedido ya pagado, el pago previsto no se toca: solo la entrega
   const guardarEntrega = () =>
-    hacer("entrega", () =>
-      api(`/pedidos/${pedido.id}/entrega`, {
-        metodo: "PATCH",
-        cuerpo: { ...(esDelivery ? { direccion: direccion.trim(), ...(distrito ? { distrito } : {}), referencia: referencia.trim() } : {}), pagoPrevisto: pagoParaApi(pago) },
-      }),
+    hacer(
+      "entrega",
+      () =>
+        api(`/pedidos/${pedido.id}/entrega`, {
+          metodo: "PATCH",
+          cuerpo: {
+            ...(esDelivery ? { direccion: direccion.trim(), ...(distrito ? { distrito } : {}), referencia: referencia.trim() } : {}),
+            ...(pedido.pagado ? {} : { pagoPrevisto: pagoParaApi(pago) }),
+          },
+        }),
+      () => setGuardado({ direccion, distrito, referencia, pago }),
     );
+
+  // Qué hay a medias, para avisar antes de cerrar
+  const [guardado, setGuardado] = useState({ direccion, distrito, referencia, pago });
+  const entregaCambiada =
+    direccion !== guardado.direccion ||
+    distrito !== guardado.distrito ||
+    referencia !== guardado.referencia ||
+    pago.momento !== guardado.pago.momento ||
+    pago.metodo !== guardado.pago.metodo ||
+    pago.pagaCon !== guardado.pago.pagaCon;
+  const pendiente = nuevas.length > 0 || entregaCambiada;
+  useEffect(() => {
+    alCambiarPendiente(pendiente);
+    return () => alCambiarPendiente(false);
+  }, [pendiente, alCambiarPendiente]);
 
   // ---------- Cancelar el pedido ----------
   const [cancelando, setCancelando] = useState(false);
@@ -195,10 +241,17 @@ function Contenido({ pedido, carta, alCerrar }: { pedido: Pedido; carta: Carta; 
             ) : (
               <PagoPrevisto valor={pago} alCambiar={setPago} total={total} delivery={esDelivery} />
             )}
-            <Boton variante="secundario" ocupado={ocupado === "entrega"} disabled={faltaEntrega !== null && !pedido.pagado} onClick={() => void guardarEntrega()}>
+            <Boton
+              variante={entregaCambiada ? "primario" : "secundario"}
+              ocupado={ocupado === "entrega"}
+              disabled={!entregaCambiada || (pedido.pagado ? esDelivery && !direccion.trim() : faltaEntrega !== null)}
+              onClick={() => void guardarEntrega()}
+            >
               Guardar {esDelivery ? "entrega y pago" : "pago"}
             </Boton>
-            {faltaEntrega && !pedido.pagado && <p className="text-center text-lg font-bold text-marino">{faltaEntrega}</p>}
+            <p aria-live="polite" className="min-h-7 text-center text-lg font-bold text-marino">
+              {faltaEntrega && !pedido.pagado ? faltaEntrega : entregaCambiada ? "Cambios sin guardar" : ""}
+            </p>
           </section>
 
           <section aria-label="Cancelar pedido" className="flex flex-col gap-3 border-t-2 border-borde pt-4">

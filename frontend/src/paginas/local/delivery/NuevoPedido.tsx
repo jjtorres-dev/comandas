@@ -16,7 +16,9 @@ import { BuscadorDeCarta } from "./BuscadorDeCarta";
 import { Lineas } from "./Lineas";
 import { PagoPrevisto } from "./PagoPrevisto";
 
-type Props = { carta: Carta; alTerminar: (enviado: Pedido | null) => void };
+// `distinto`: el servidor devolvió un pedido que no coincide con lo que hay en
+// pantalla (un envío anterior sí había llegado y después se cambió algo)
+type Props = { carta: Carta; alTerminar: (enviado: Pedido | null, distinto?: boolean) => void };
 
 const PANEL = "flex flex-col gap-4 rounded-panel border-2 border-borde-fuerte bg-superficie p-4";
 const SEGMENTO = "presionable min-h-12 cursor-pointer rounded-interior px-3 text-xl font-bold";
@@ -85,14 +87,23 @@ export function NuevoPedido({ carta, alTerminar }: Props) {
     enabled: numero !== null && cliente.data != null,
   });
 
-  // Al encontrar al cliente se rellenan sus datos, una vez por teléfono (se pueden corregir)
+  // Al encontrar al cliente se rellenan sus datos, una vez por teléfono (se pueden
+  // corregir). Si después se cambia el teléfono, lo que se había rellenado solo
+  // se borra: la dirección de un cliente no puede quedarse en el pedido de otro.
   const [rellenado, setRellenado] = useState<string | null>(null);
   if (cliente.data && numero && rellenado !== numero) {
     setRellenado(numero);
     setNombre(cliente.data.nombre ?? "");
     setDireccion(cliente.data.direccion ?? "");
     setReferencia(cliente.data.referencia ?? "");
-    if (cliente.data.distrito && reparto.distritos.includes(cliente.data.distrito)) setDistrito(cliente.data.distrito);
+    setDistrito(cliente.data.distrito && reparto.distritos.includes(cliente.data.distrito) ? cliente.data.distrito : (reparto.distritos[0] ?? ""));
+  } else if (rellenado !== null && numero !== rellenado && (numero === null || cliente.isSuccess)) {
+    setRellenado(null);
+    setNombre("");
+    setDireccion("");
+    setReferencia("");
+    setDistrito(reparto.distritos[0] ?? "");
+    setFaltanDeRepetir([]);
   }
 
   // ---------- Cuentas para decirle el total al cliente (el confirmado llega al enviar) ----------
@@ -132,7 +143,7 @@ export function NuevoPedido({ carta, alTerminar }: Props) {
         },
       });
       void consultas.invalidateQueries({ queryKey: claves.pedidos });
-      alTerminar(pedido);
+      alTerminar(pedido, centimos(pedido.total) !== total);
     } catch (causa) {
       setError(mensajeDe(causa));
       setEnviando(false);
