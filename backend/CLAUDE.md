@@ -60,10 +60,21 @@ está en `../CLAUDE.md`. Todos los comandos de este archivo se ejecutan desde
 - Login con `{codigoNegocio, usuario, password}` (`Negocio.codigo` es único; el
   usuario solo es único dentro de su negocio). Máximo 5 intentos fallidos por
   minuto por IP.
-- Marca del negocio: `Negocio.logoUrl` es una ruta bajo `/uploads` (o una URL
-  absoluta). `public/uploads/` se sirve en `/uploads` sin autenticación. El login,
-  `GET /api/auth/yo` y `GET /api/negocios/:codigo/publico` (público, 30 consultas
-  por minuto por IP, solo `{nombre, logoUrl}`) devuelven el nombre y el logo.
+- Marca del negocio: el logo se guarda en la base (`Negocio.logo` y `logoTipo`)
+  para que sobreviva a cada despliegue; el servidor no sirve archivos de disco.
+  `Negocio.logoUrl` es `/api/negocios/<codigo>/logo?v=…` (público, con caché; la
+  `v` cambia con cada imagen). **Nunca cargar un `Negocio` entero**: usar
+  `select` u `omit: { logo: true }` para no traer la imagen. El login,
+  `GET /api/auth/yo` y `GET /api/negocios/:codigo/publico` (público, 30
+  consultas por minuto por IP, solo `{nombre, logoUrl}`) devuelven el nombre y
+  el logo.
+- Administración (`src/modules/admin/`, todo bajo `/api/admin` y solo `ADMIN`):
+  un controlador y un archivo de reglas por tema (`carta.admin.ts`,
+  `personal.admin.ts`, `local.admin.ts`, `negocio.admin.ts`,
+  `reportes.admin.ts`). Lo que tiene historial no se borra (409
+  `CON_HISTORIAL`): se desactiva. Cada cambio llama a `avisarCambio`
+  (`carta:actualizada`). Las ventas de los reportes son lo cobrado (pagos
+  vigentes por fecha de cobro, en días de America/Lima).
 - `requireAuth` consulta la base en cada request: si el usuario o su negocio están
   inactivos, o sus roles ya no son los del token, responde 401.
 - Roles: MOZO, LOCAL y ADMIN operan pedidos; caja, cobros y cargos son solo de
@@ -89,7 +100,8 @@ está en `../CLAUDE.md`. Todos los comandos de este archivo se ejecutan desde
   `{ error: { codigo, mensaje, ... } }` con el mensaje en español.
 - Los montos viajan en el JSON como texto con 2 decimales (`"25.00"`).
 - Precios y nombres de un pedido salen siempre de la base, nunca del cliente.
-- Los eventos de Socket.IO (`pedido:creado`, `pedido:actualizado`, `caja:actualizada`)
+- Los eventos de Socket.IO (`pedido:creado`, `pedido:actualizado`, `caja:actualizada`,
+  `carta:actualizada`)
   se emiten a la sala `negocio:<id>` después de confirmar la transacción.
 - Delivery y para llevar: el teléfono se guarda normalizado (solo dígitos, sin el
   51). Con teléfono se hace upsert de `Cliente`; nombre, teléfono, dirección y

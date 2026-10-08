@@ -1,10 +1,15 @@
 import { CheckCircleIcon, PlusIcon, WifiSlashIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { BarraDeshacer } from "../../componentes/BarraDeshacer";
 import { ErrorDeCarga, Esqueleto } from "../../componentes/EstadoDeCarga";
-import { consultaCarta, consultaPorTelefono, consultaRepartidores } from "../../lib/consultas";
+import { mensajeDe } from "../../lib/api";
+import { claves, consultaCarta, consultaPorTelefono, consultaRepartidores } from "../../lib/consultas";
 import { useAhora } from "../../lib/formato";
 import type { Pedido } from "../../lib/tipos";
+import { SEGUNDOS_DESHACER } from "../../local/acciones";
 import { porRendir } from "../../local/delivery";
 import { centimos, soles } from "../../local/dinero";
 import { useSesion } from "../../sesion/contexto";
@@ -31,6 +36,25 @@ export function Delivery() {
   // Se guardan los ids: el pedido que se muestra es siempre el del servidor, al día
   const [modificando, setModificando] = useState<string | null>(null);
   const [cobrando, setCobrando] = useState<string | null>(null);
+  // "Salió" y "Entregado" se pueden deshacer durante unos segundos, como en Cocina
+  const consultas = useQueryClient();
+  const [despacho, setDespacho] = useState<{ id: number; texto: string; deshacer: () => Promise<unknown> } | null>(null);
+  useEffect(() => {
+    if (!despacho) return;
+    const reloj = setTimeout(() => setDespacho(null), SEGUNDOS_DESHACER * 1000);
+    return () => clearTimeout(reloj);
+  }, [despacho]);
+
+  async function deshacerDespacho() {
+    if (!despacho) return;
+    setDespacho(null);
+    try {
+      await despacho.deshacer();
+    } catch (causa) {
+      toast.error(`No se pudo deshacer. ${mensajeDe(causa)}`);
+    }
+    void consultas.invalidateQueries({ queryKey: claves.pedidos });
+  }
 
   const lista = pedidos.data ?? [];
   const buscar = (id: string | null) => (id ? (lista.find((p) => p.id === id) ?? null) : null);
@@ -109,6 +133,10 @@ export function Delivery() {
         )}
       </div>
 
+      {despacho && <div className="flex">
+        <BarraDeshacer clave={despacho.id} texto={despacho.texto} alDeshacer={() => void deshacerDespacho()} alCerrar={() => setDespacho(null)} />
+      </div>}
+
       <Rendicion pedidos={porRendir(lista)} />
 
       {lista.length === 0 ? (
@@ -125,6 +153,7 @@ export function Delivery() {
           ahora={ahora}
           alModificar={(pedido) => setModificando(pedido.id)}
           alCobrar={(pedido) => setCobrando(pedido.id)}
+          alDespachar={(texto, deshacer) => setDespacho((previo) => ({ id: (previo?.id ?? 0) + 1, texto, deshacer }))}
         />
       )}
 

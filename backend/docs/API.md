@@ -15,14 +15,14 @@ Referencia de todos los endpoints HTTP y eventos de Socket.IO del backend.
 |---|---|
 | URL base | `http://localhost:3000/api` en desarrollo |
 | Formato | JSON en peticiones y respuestas (`Content-Type: application/json`). Cuerpo máximo: 100 kB |
-| Autenticación | `Authorization: Bearer <token>` en todo excepto `POST /auth/login`, `GET /negocios/:codigo/publico`, `GET /salud` y los archivos de `/uploads` |
+| Autenticación | `Authorization: Bearer <token>` en todo excepto `POST /auth/login`, `GET /negocios/:codigo/publico`, `GET /negocios/:codigo/logo` y `GET /salud` |
 | Negocio | Sale siempre del token. Ningún endpoint recibe `negocioId` |
 | Montos (respuesta) | Texto con 2 decimales: `"25.00"` |
 | Montos (petición) | Número con 2 decimales como máximo: `25` o `25.5` |
 | Fechas | ISO 8601 en UTC: `"2026-10-07T15:39:12.123Z"` |
 | Ids | UUID. Un id mal formado responde 400 |
 | Campos desconocidos | Se ignoran (por ejemplo, un `precio` enviado por el cliente) |
-| Archivos | Los logos se sirven sin autenticación en `/uploads/…`, fuera de `/api` (ver [Negocios](#negocios)) |
+| Archivos | El logo de cada negocio se guarda en la base y se sirve sin autenticación en `GET /api/negocios/:codigo/logo` (ver [Negocios](#negocios)). El servidor no sirve archivos de disco |
 
 **Roles**: `ADMIN` (dueño), `MOZO` (toma pedidos), `LOCAL` (cocina y caja). Donde
 dice "cualquiera" basta con estar autenticado.
@@ -216,7 +216,7 @@ correctos no cuentan).
 {
   "token": "eyJhbGciOi…",
   "usuario": { "id": "…", "nombre": "Mozo", "usuario": "mozo", "roles": ["MOZO"] },
-  "negocio": { "id": "…", "codigo": "valentina", "nombre": "Cevichería Valentina", "logoUrl": "/uploads/negocios/valentina.png" }
+  "negocio": { "id": "…", "codigo": "valentina", "nombre": "Cevichería Valentina", "logoUrl": "/api/negocios/valentina/logo?v=1" }
 }
 ```
 
@@ -242,7 +242,7 @@ logo del negocio.
 ```json
 {
   "usuario": { "id": "…", "nombre": "Mozo", "usuario": "mozo", "roles": ["MOZO"] },
-  "negocio": { "id": "…", "codigo": "valentina", "nombre": "Cevichería Valentina", "logoUrl": "/uploads/negocios/valentina.png" }
+  "negocio": { "id": "…", "codigo": "valentina", "nombre": "Cevichería Valentina", "logoUrl": "/api/negocios/valentina/logo?v=1" }
 }
 ```
 
@@ -265,7 +265,7 @@ mayúsculas. Máximo **30 consultas por minuto por IP**.
 **200**
 
 ```json
-{ "nombre": "Cevichería Valentina", "logoUrl": "/uploads/negocios/valentina.png" }
+{ "nombre": "Cevichería Valentina", "logoUrl": "/api/negocios/valentina/logo?v=1" }
 ```
 
 `logoUrl` es `null` si el negocio no tiene logo; en ese caso se muestra solo el
@@ -278,16 +278,23 @@ nombre.
 | 404 | `NO_ENCONTRADO` | No existe un negocio con ese código, o está inactivo |
 | 429 | `DEMASIADOS_INTENTOS` | Se superó el límite; reintentar en un minuto |
 
+### `GET /api/negocios/:codigo/logo`
+
+Sin autenticación y sin límite de consultas. Responde la imagen del logo con su
+`Content-Type` (`image/png`, `image/jpeg` o `image/webp`) y un día de caché.
+**404** `NO_ENCONTRADO` si el negocio no existe, está inactivo o no tiene logo.
+
 ### Logo (`logoUrl`)
 
-`logoUrl` es una ruta que empieza con `/uploads/` y se resuelve contra el origen
-del servidor (no contra `/api`): en desarrollo,
-`http://localhost:3000/uploads/negocios/valentina.png`. También puede ser una
-URL absoluta (`https://…`), que se usa tal cual. Los archivos se sirven sin
-autenticación, con una hora de caché.
+El logo se guarda en la base de datos (no en disco: sobrevive a cada
+despliegue). `logoUrl` es la ruta de arriba con un `?v=…` que cambia cada vez
+que el dueño sube otra imagen, así que se puede guardar en caché sin servir una
+vieja: `/api/negocios/valentina/logo?v=1760000000000`. Se resuelve contra el
+origen del servidor (en desarrollo, `http://localhost:3000/api/negocios/…`).
+También puede ser una URL absoluta (`https://…`), que se usa tal cual.
 
 El nombre y el logo del negocio salen siempre de la API; el frontend no los
-lleva en su código.
+lleva en su código. El dueño los cambia desde [Administración](#administración).
 
 ---
 
@@ -326,7 +333,8 @@ lleva en su código.
   ],
   "notasRapidas": [{ "id": "…", "texto": "Sin cebolla" }],
   "areas": [{ "id": "…", "nombre": "Cocina" }, { "id": "…", "nombre": "Bebidas" }],
-  "reparto": { "costoEnvioDefault": "3.00", "precioTaper": "1.00", "distritos": ["Tarapoto", "Morales", "La Banda de Shilcayo"], "region": "San Martín, Perú" }
+  "reparto": { "costoEnvioDefault": "3.00", "precioTaper": "1.00", "distritos": ["Tarapoto", "Morales", "La Banda de Shilcayo"], "region": "San Martín, Perú" },
+  "cocina": { "tardaMin": 15, "muyTardeMin": 25 }
 }
 ```
 
@@ -338,6 +346,7 @@ lleva en su código.
 | `opcionesCombo` | Solo combos: `[{ productoId, nombre }]`, los platos elegibles. El `productoId` es lo que se envía en `componentes` |
 | `notasRapidas` | Botones de texto para las notas de un item |
 | `reparto` | Para tomar un pedido por teléfono y decirle el total al cliente: envío por defecto, precio de cada taper, distritos de reparto (el primero es el de por defecto) y la región que completa la dirección al buscarla en un mapa (`dirección, distrito, región`). `distritos` puede venir vacío y `region` en `null` |
+| `cocina` | Minutos desde que entró una comanda a partir de los cuales el panel de cocina la marca como que tarda (ámbar) o va muy tarde (rojo). Los fija el dueño |
 | `areas` | Áreas de preparación activas, en su orden: `[{ id, nombre }]`. Es el `areaId` de cada producto y de cada item de un pedido; el panel de cocina agrupa y filtra por ellas |
 
 ---
@@ -406,7 +415,7 @@ repetirlo hay que buscarlos entre las `opcionesCombo` actuales de la carta.
 
 **Roles**: cualquiera. Repartidores activos, por nombre.
 
-**200** `{ "repartidores": [{ "id": "…", "nombre": "Motorizado", "telefono": "999888777" }] }` (`telefono` puede ser `null`)
+**200** `{ "repartidores": [{ "id": "…", "nombre": "José Falcón", "telefono": "916386642" }] }` (`telefono` puede ser `null`)
 
 ---
 
@@ -659,6 +668,9 @@ mientras el pedido no haya salido.
 Todos los items pasan a `CANCELADO`, el pedido queda `CANCELADO` con
 `motivoCancelacion`, y libera la mesa si era de mesa.
 
+Un pedido cancelado (por esta ruta o porque se canceló su último item) queda
+con `total`, `costoEnvio`, `cargoTapers` y `descuento` en `0.00` y sin tapers.
+
 **200** `{ pedido: Pedido }`. Emite `pedido:actualizado`.
 
 **Errores**
@@ -689,12 +701,36 @@ Asigna o quita el repartidor de un delivery. **Roles**: `MOZO`, `LOCAL`, `ADMIN`
 
 ### `PATCH /api/pedidos/:id/estado`
 
-Despacho del pedido completo. **Roles**: `MOZO`, `LOCAL`, `ADMIN`.
+Despacho del pedido completo, y cómo deshacer el último paso. **Roles**: `MOZO`,
+`LOCAL`, `ADMIN`.
 
-**Body** `{ "estado": "EN_CAMINO" }` o `{ "estado": "ENTREGADO" }`
+**Body** `{ "estado": "EN_CAMINO" }`, `{ "estado": "ENTREGADO" }` o `{ "estado": "LISTO" }`
 
-| `estado` | Condición | Efecto |
+| `estado` | Desde | Efecto |
 |---|---|---|
+| `EN_CAMINO` | `LISTO` (solo `DELIVERY`) | El pedido sale: pasa a `EN_CAMINO` |
+| `ENTREGADO` | `LISTO` o `EN_CAMINO`, cualquier tipo | Todos los items no cancelados pasan a `ENTREGADO`, y con ellos el pedido |
+| `LISTO` | `EN_CAMINO` | **Deshace la salida**: el pedido vuelve a `LISTO`. No toca al repartidor asignado |
+| `EN_CAMINO` | `ENTREGADO` (solo `DELIVERY`) | **Deshace la entrega**: los items vuelven a `LISTO` (conservan su `listoEn`) y el pedido a `EN_CAMINO` |
+| `LISTO` | `ENTREGADO` (pedidos que no son delivery) | **Deshace la entrega**: los items y el pedido vuelven a `LISTO` |
+
+Una entrega solo se deshace si no se registró ningún pago vigente **después** de
+ella. Los pagos anteriores (el cliente pagó por adelantado) no lo impiden.
+
+**200** `{ "pedido": Pedido }`. Emite `pedido:actualizado`.
+
+**Errores**
+
+| HTTP | `codigo` | Cuándo |
+|---|---|---|
+| 400 | `DATOS_INVALIDOS` | `estado` distinto de `EN_CAMINO`, `ENTREGADO` o `LISTO` |
+| 404 | `NO_ENCONTRADO` | El pedido no existe |
+| 409 | `NO_ES_DELIVERY` | `EN_CAMINO` en un pedido que no es delivery |
+| 409 | `PEDIDO_NO_LISTO` | El pedido no está en un estado desde el que se pueda dar ese paso (todavía hay items sin terminar, o `LISTO` sobre un pedido que no salió ni se entregó) |
+| 409 | `PEDIDO_CON_PAGOS` | Se quiere deshacer una entrega, pero ya se cobró después de ella |
+| 409 | `PEDIDO_CANCELADO` | El pedido está cancelado |
+
+---|---|---|
 | `EN_CAMINO` | Solo `DELIVERY`, y el pedido debe estar `LISTO` | El pedido pasa a `EN_CAMINO` |
 | `ENTREGADO` | Cualquier tipo; el pedido debe estar `LISTO` o `EN_CAMINO` | Todos los items no cancelados pasan a `ENTREGADO`, y con ellos el pedido |
 
@@ -1027,6 +1063,235 @@ Los pedidos con pago parcial no impiden cerrar: se listan y se avisa. Sin ellos,
 
 ---
 
+## Administración
+
+Todo lo que cuelga de `/api/admin` es **solo para `ADMIN`** (403 `SIN_PERMISO`
+para los demás). Como siempre, el negocio sale del token y lo de otro negocio
+responde 404. Cada cambio emite `carta:actualizada` a todo el negocio.
+
+**Regla general: lo que ya tiene historial no se borra.** Cada lista trae
+`eliminable`; si es `false`, `DELETE` responde 409 `CON_HISTORIAL` y lo único
+posible es desactivarlo (`activo: false`). Lo inactivo deja de salir en
+`GET /carta`, `GET /mesas` y `GET /repartidores`, pero los pedidos pasados no
+cambian (guardan su propia copia de nombres y precios).
+
+Las rutas `…/mover` reciben `{ "direccion": "subir" | "bajar" }` y responden
+204; en el extremo de la lista no hacen nada.
+
+### Carta
+
+#### `GET /api/admin/carta`
+
+La carta entera, con lo inactivo.
+
+```json
+{
+  "areas": [{ "id": "…", "nombre": "Cocina" }],
+  "categorias": [
+    {
+      "id": "…", "nombre": "Frituras", "activo": true, "eliminable": false,
+      "productos": [
+        {
+          "id": "…", "nombre": "Chicharrón de Pota", "categoriaId": "…", "areaId": "…",
+          "tapers": 1, "activo": true, "esCombo": false, "comboCantidad": null, "eliminable": false,
+          "variantes": [{ "id": "…", "nombre": "S/ 10", "precio": "10.00" }],
+          "opcionesCombo": []
+        }
+      ]
+    }
+  ]
+}
+```
+
+Una categoría es `eliminable` si no tiene platos; un plato, si nunca se vendió.
+`variantes` trae solo las vigentes.
+
+#### Categorías
+
+| Método | Ruta | Body | Respuesta |
+|---|---|---|---|
+| POST | `/api/admin/categorias` | `{ nombre }` | 201 `{ id }` (va al final) |
+| PATCH | `/api/admin/categorias/:id` | `{ nombre?, activo? }` | 204 |
+| DELETE | `/api/admin/categorias/:id` | | 204, o 409 `CON_HISTORIAL` si tiene platos |
+| POST | `/api/admin/categorias/:id/mover` | `{ direccion }` | 204 |
+
+#### `POST /api/admin/productos`
+
+```json
+{
+  "nombre": "Chaufa de Mariscos",
+  "categoriaId": "…",
+  "areaId": "…",
+  "tapers": 1,
+  "variantes": [{ "nombre": "Personal", "precio": 15 }, { "nombre": "Fuente", "precio": 30 }],
+  "esCombo": false,
+  "comboCantidad": null,
+  "opcionesCombo": []
+}
+```
+
+| Campo | Regla |
+|---|---|
+| `variantes` | De 1 a 12. Con una sola, el nombre se guarda como `"Única"`; con varias, cada una lleva un nombre distinto. Precio de 0 a 9999 |
+| `tapers` | 0 a 10 |
+| `esCombo` | Un combo lleva `comboCantidad` (2 a 6), un solo precio y al menos un plato en `opcionesCombo` (ids de productos de esta carta que no sean combos) |
+
+**201** `{ "id": "…" }`. El plato va al final de su categoría. **400** si algo
+de lo anterior no se cumple o la categoría, el área o un plato del combo no son
+de este negocio.
+
+#### `PATCH /api/admin/productos/:id`
+
+Los mismos campos, todos opcionales, más `activo`. Responde 204.
+
+`variantes` reemplaza la lista completa: las que traen `id` se actualizan, las
+que no, se crean, y las que ya no vienen se eliminan (si alguna se vendió, queda
+retirada: no se borra, pero deja de ofrecerse). Al cambiar de categoría el plato
+pasa al final de la nueva.
+
+#### `PATCH /api/admin/variantes/:id/precio`
+
+Cambio rápido de un precio. Body `{ "precio": 23.5 }`. **200**
+`{ "id": "…", "precio": "23.50" }`. Los pedidos ya tomados conservan su precio.
+
+#### `DELETE /api/admin/productos/:id` y `POST /api/admin/productos/:id/mover`
+
+204. Eliminar responde 409 `CON_HISTORIAL` si el plato ya se vendió. Mover lo
+sube o baja dentro de su categoría.
+
+### Personal
+
+#### `GET /api/admin/usuarios`
+
+```json
+{ "usuarios": [{ "id": "…", "nombre": "Soger", "usuario": "soger", "roles": ["MOZO"], "activo": true, "creadoEn": "…" }] }
+```
+
+#### `POST /api/admin/usuarios`
+
+Body `{ nombre, usuario, password, roles }`. `usuario`: 3 a 30 letras
+minúsculas, números, punto, guion o guion bajo (se pasa a minúsculas).
+`password`: 6 caracteres como mínimo. `roles`: al menos uno. **201**
+`{ "usuario": { … } }`; la persona ya puede iniciar sesión.
+
+#### `PATCH /api/admin/usuarios/:id`
+
+Body `{ nombre?, usuario?, roles?, activo? }`. **200** `{ "usuario": { … } }`.
+Si cambian sus roles o se desactiva, su sesión deja de valer en la siguiente
+petición (401).
+
+#### `PUT /api/admin/usuarios/:id/password`
+
+Body `{ "password": "…" }`. 204.
+
+**Errores de personal**
+
+| HTTP | `codigo` | Cuándo |
+|---|---|---|
+| 409 | `USUARIO_EN_USO` | Ya hay alguien con ese usuario en el negocio |
+| 409 | `ES_TU_USUARIO` | El dueño intenta quitarse el rol `ADMIN` o desactivarse |
+| 409 | `ULTIMO_ADMIN` | El cambio dejaría al negocio sin ningún `ADMIN` activo |
+
+### Mesas, motorizados y notas rápidas
+
+| Método | Ruta | Body | Respuesta |
+|---|---|---|---|
+| GET | `/api/admin/mesas` | | `{ mesas: [{ id, nombre, activo, eliminable }] }` |
+| POST | `/api/admin/mesas` | `{ nombre }` | 201 `{ id }` |
+| PATCH | `/api/admin/mesas/:id` | `{ nombre?, activo? }` | 204; 409 `MESA_OCUPADA` al desactivar una mesa con un pedido abierto |
+| DELETE | `/api/admin/mesas/:id` | | 204; 409 `CON_HISTORIAL` si ya tuvo pedidos |
+| POST | `/api/admin/mesas/:id/mover` | `{ direccion }` | 204 |
+| GET | `/api/admin/repartidores` | | `{ repartidores: [{ id, nombre, telefono, activo, eliminable }] }` |
+| POST | `/api/admin/repartidores` | `{ nombre, telefono? }` | 201 `{ id }` |
+| PATCH | `/api/admin/repartidores/:id` | `{ nombre?, telefono?, activo? }` | 204. `telefono: ""` o `null` lo quita |
+| DELETE | `/api/admin/repartidores/:id` | | 204; 409 `CON_HISTORIAL` si ya llevó pedidos |
+| GET | `/api/admin/notas` | | `{ notas: [{ id, texto, activo, eliminable }] }` |
+| POST | `/api/admin/notas` | `{ texto }` | 201 `{ id }` |
+| PATCH | `/api/admin/notas/:id` | `{ texto?, activo? }` | 204 |
+| DELETE | `/api/admin/notas/:id` | | 204 (una nota siempre se puede eliminar) |
+| POST | `/api/admin/notas/:id/mover` | `{ direccion }` | 204 |
+
+El teléfono se normaliza igual que el de los clientes (solo dígitos, sin el 51).
+
+### Negocio
+
+#### `GET /api/admin/negocio` y `PATCH /api/admin/negocio`
+
+```json
+{
+  "negocio": {
+    "id": "…", "codigo": "valentina", "nombre": "Cevichería Valentina",
+    "logoUrl": "/api/negocios/valentina/logo?v=1",
+    "costoEnvioDefault": "3.00", "precioTaper": "1.00",
+    "distritos": ["Tarapoto", "Morales", "La Banda de Shilcayo"], "region": "San Martín, Perú",
+    "umbralTardaMin": 15, "umbralMuyTardeMin": 25
+  }
+}
+```
+
+`PATCH` recibe cualquiera de `nombre`, `costoEnvioDefault` y `precioTaper` (0 a
+20), `region`, `distritos` (lista completa, sin repetidos; el primero es el de
+por defecto), `umbralTardaMin` y `umbralMuyTardeMin` (1 a 240 minutos; el
+segundo tiene que ser mayor). Responde el negocio actualizado. El `codigo` no se
+cambia.
+
+#### `PUT /api/admin/negocio/logo`
+
+El cuerpo es **la imagen tal cual** (no JSON), con `Content-Type: image/png`,
+`image/jpeg` o `image/webp`, de 1 MB como máximo. El tipo se comprueba por el
+contenido del archivo. Responde `{ "negocio": { … } }` con el `logoUrl` nuevo.
+
+| HTTP | `codigo` | Cuándo |
+|---|---|---|
+| 400 | `SOLICITUD_INVALIDA` | No es una imagen PNG, JPG o WebP |
+| 413 | `CUERPO_MUY_GRANDE` | Pesa más de 1 MB |
+
+#### `DELETE /api/admin/negocio/logo`
+
+Quita el logo (`logoUrl: null`). Responde `{ "negocio": { … } }`.
+
+### `GET /api/admin/reportes?desde=AAAA-MM-DD&hasta=AAAA-MM-DD`
+
+Días completos en la hora del negocio (America/Lima), los dos incluidos; un año
+como máximo. **400** si falta una fecha o el rango está al revés.
+
+```json
+{
+  "desde": "2026-10-07",
+  "hasta": "2026-10-07",
+  "ventas": {
+    "total": "430.00",
+    "pedidos": 18,
+    "ticketPromedio": "23.89",
+    "porMetodo": { "EFECTIVO": "250.00", "YAPE": "150.00", "PLIN": "0.00", "TARJETA": "30.00" },
+    "porTipo": { "MESA": "300.00", "PARA_LLEVAR": "40.00", "DELIVERY": "90.00" },
+    "porDia": [{ "fecha": "2026-10-07", "total": "430.00", "pedidos": 18 }]
+  },
+  "porCobrar": { "total": "53.00", "pedidos": 2 },
+  "pedidosTomados": 20,
+  "platos": [{ "nombre": "Ceviche Simple", "cantidad": 14, "total": "280.00" }],
+  "porHora": [{ "hora": 0, "pedidos": 0 }, { "hora": 13, "pedidos": 9 }],
+  "cocina": { "promedioMin": 11.4, "platos": 52, "porArea": [{ "area": "Cocina", "promedioMin": 12.8, "platos": 40 }] },
+  "turnos": [],
+  "correcciones": [
+    { "id": "…", "tipo": "ANULACION", "detalle": { "motivo": "Se cobró dos veces", "metodo": "TARJETA", "monto": "13.00" }, "creadoEn": "…", "usuario": "Diana", "monto": "13.00", "pedido": { "id": "…", "numero": 7 } }
+  ]
+}
+```
+
+| Campo | Qué cuenta |
+|---|---|
+| `ventas` | **Lo cobrado en esos días**: pagos vigentes (los anulados no cuentan) por su fecha de cobro. `pedidos` son los pedidos distintos con algún cobro y `ticketPromedio` es `total / pedidos`. `porDia` trae todos los días del rango, también los que están en cero |
+| `porCobrar` | Pedidos tomados en esos días, no cancelados, que todavía deben algo, y cuánto |
+| `pedidosTomados` | Pedidos creados en esos días, sin los cancelados |
+| `platos` | Los 10 más pedidos en esos días (sin los cancelados), por unidades; `total` es `cantidad × precio` |
+| `porHora` | Siempre 24 filas (0 a 23, hora del negocio): pedidos tomados en esa hora |
+| `cocina` | Minutos promedio desde que se pide un plato hasta que se marca listo, en general y por área. `promedioMin` es `null` si no hay platos listos |
+| `turnos` | Los [turnos de caja](#turno-de-caja) abiertos en esos días, del más reciente al más antiguo, con su `diferencia` al cierre |
+| `correcciones` | Cada cambio de método (`"METODO"`, con `detalle.antes` y `detalle.despues`) o anulación (`"ANULACION"`, con `detalle.motivo`) hecha en esos días |
+
+---
+
 ## Tiempo real (Socket.IO)
 
 Socket.IO corre sobre el mismo servidor y puerto que la API.
@@ -1055,6 +1320,7 @@ enviar mensajes: el servidor solo emite.
 | `pedido:creado` | [Pedido](#pedido) completo | `POST /pedidos` (no en reintentos con el mismo `idCliente`) |
 | `pedido:actualizado` | [Pedido](#pedido) completo | Ronda agregada, cambio de estado de items, item cancelado, cargos, repartidor, estado del pedido, pagos y sus correcciones |
 | `caja:actualizada` | [Turno](#turno-de-caja) con su resumen | Apertura de caja, cada cobro, cada corrección de un pago, cierre de caja |
+| `carta:actualizada` | `{}` | Cualquier cambio hecho desde [Administración](#administración) en la carta, las mesas, los motorizados, las notas rápidas o los datos del negocio |
 
 Todos se emiten después de confirmar la transacción y los recibe todo el
 negocio, incluido el dispositivo que hizo el cambio.
@@ -1069,6 +1335,8 @@ Notas para el frontend:
   `ENTREGADO` y además `pagado`.
 - Las mesas no tienen evento propio: una mesa cambia con los pedidos de tipo
   `MESA` (ocupada mientras tenga uno no pagado y no cancelado).
+- Con `carta:actualizada` hay que volver a pedir `GET /carta`, `GET /mesas`,
+  `GET /repartidores` y `GET /auth/yo` (nombre y logo): el evento no trae datos.
 - Tras una reconexión, volver a pedir `GET /pedidos/activos` (y `GET
   /caja/actual` si aplica): los eventos emitidos durante el corte no se reenvían.
 
@@ -1081,6 +1349,7 @@ Notas para el frontend:
 | POST | `/api/auth/login` | público | |
 | GET | `/api/auth/yo` | cualquiera | |
 | GET | `/api/negocios/:codigo/publico` | público | |
+| GET | `/api/negocios/:codigo/logo` | público | |
 | GET | `/api/salud` | público | |
 | GET | `/api/carta` | cualquiera | |
 | GET | `/api/mesas` | MOZO, LOCAL, ADMIN | |
@@ -1107,3 +1376,5 @@ Notas para el frontend:
 | GET | `/api/caja/actual` | LOCAL, ADMIN | |
 | GET | `/api/caja/cobrados` | LOCAL, ADMIN | |
 | POST | `/api/caja/cerrar` | LOCAL, ADMIN | `caja:actualizada` |
+| GET | `/api/admin/carta`, `/usuarios`, `/mesas`, `/repartidores`, `/notas`, `/negocio`, `/reportes` | ADMIN | |
+| POST, PATCH, PUT, DELETE | `/api/admin/…` (ver [Administración](#administración)) | ADMIN | `carta:actualizada` |

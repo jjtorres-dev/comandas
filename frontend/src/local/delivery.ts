@@ -1,5 +1,6 @@
 // Pedidos por teléfono: en qué columna del tablero va cada uno, cómo se dice
 // su pago previsto y los mensajes de WhatsApp para el motorizado y el cliente.
+import { platosDeCombo } from "../lib/formato";
 import type { MetodoPago, Pedido } from "../lib/tipos";
 import { centimos, nombreDeMetodo, soles } from "./dinero";
 
@@ -80,7 +81,13 @@ export function mensajeParaMotorizado(pedido: Pedido, region: string | null): st
     `Dirección: ${[pedido.direccionEntrega, pedido.distritoEntrega].filter(Boolean).join(", ")}`,
   ];
   if (pedido.referenciaEntrega) lineas.push(`Referencia: ${pedido.referenciaEntrega}`);
-  lineas.push(`Mapa: ${enlaceMaps(pedido, region)}`, "", `Total: ${soles(centimos(pedido.total))}`);
+  lineas.push(`Mapa: ${enlaceMaps(pedido, region)}`, "", "Lleva:");
+  // Para revisar la bolsa antes de salir: qué va y cuánto, sin las notas de cocina
+  for (const item of pedido.items) {
+    if (item.estado === "CANCELADO") continue;
+    lineas.push(`${item.cantidad} x ${item.nombreProducto}${item.componentes.length > 0 ? ` (${platosDeCombo(item.componentes)})` : ""}`);
+  }
+  lineas.push("", `Total: ${soles(centimos(pedido.total))}`);
   if (pedido.pagado || previsto?.momento === "ANTICIPADO") {
     lineas.push("*Ya está pagado: no cobrar*");
   } else if (previsto?.metodo === "EFECTIVO" && previsto.pagaCon && previsto.vuelto) {

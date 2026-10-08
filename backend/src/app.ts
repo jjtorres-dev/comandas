@@ -1,10 +1,10 @@
-import { fileURLToPath } from "node:url";
 import cors from "cors";
 import express from "express";
 import { z } from "zod";
 import { opcionesCors } from "./config/cors";
 import { env } from "./config/env";
 import { manejarErrores, rutaNoEncontrada } from "./middlewares/errores";
+import { rutasAdmin } from "./modules/admin/admin.routes";
 import { rutasAuth } from "./modules/auth/auth.routes";
 import { rutasCaja } from "./modules/caja/caja.routes";
 import { rutasCarta } from "./modules/carta/carta.routes";
@@ -26,15 +26,13 @@ if (env.TRUST_PROXY !== undefined) app.set("trust proxy", env.TRUST_PROXY);
 app.use(cors(opcionesCors));
 app.use(express.json({ limit: "100kb" }));
 
-// Archivos estáticos (logos de los negocios): backend/public/uploads → /uploads
-const carpetaUploads = fileURLToPath(new URL("../public/uploads", import.meta.url));
-app.use("/uploads", express.static(carpetaUploads, { maxAge: "1h", index: false, fallthrough: true }));
-
 app.get("/api/salud", (_req, res) => {
   res.json({ ok: true });
 });
 
 app.use("/api/auth", rutasAuth);
+// Administración: solo el dueño (ADMIN)
+app.use("/api/admin", rutasAdmin);
 app.use("/api/negocios", rutasNegocios);
 app.use("/api/carta", rutasCarta);
 app.use("/api/mesas", rutasMesas);

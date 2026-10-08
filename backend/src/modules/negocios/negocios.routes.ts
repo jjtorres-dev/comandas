@@ -22,3 +22,5 @@ const limitePublico = rateLimit({
 });
 
 rutasNegocios.get("/:codigo/publico", limitePublico, controlador.publico);
+// Público y sin límite: es una imagen que el navegador guarda en caché
+rutasNegocios.get("/:codigo/logo", controlador.logo);

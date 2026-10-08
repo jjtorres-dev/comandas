@@ -28,6 +28,10 @@ export type CodigoError =
   | "SIN_CAJA_ABIERTA"
   | "CAJA_YA_ABIERTA"
   | "PAGO_EXCEDE_SALDO"
+  | "CON_HISTORIAL"
+  | "USUARIO_EN_USO"
+  | "ES_TU_USUARIO"
+  | "ULTIMO_ADMIN"
   | "SIN_CONEXION"
   | (string & {});
 
@@ -75,14 +79,17 @@ export function configurarApi(nueva: Conexion) {
 type Opciones = {
   metodo?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   cuerpo?: unknown;
+  // Un archivo que viaja tal cual en el cuerpo (el logo), con su propio tipo
+  archivo?: Blob;
   signal?: AbortSignal;
 };
 
 // ruta relativa a /api, p. ej. api("/pedidos/activos")
-export async function api<T>(ruta: string, { metodo = "GET", cuerpo, signal }: Opciones = {}): Promise<T> {
+export async function api<T>(ruta: string, { metodo = "GET", cuerpo, archivo, signal }: Opciones = {}): Promise<T> {
   const token = conexion.obtenerToken();
   const headers: Record<string, string> = { Accept: "application/json" };
-  if (cuerpo !== undefined) headers["Content-Type"] = "application/json";
+  if (archivo) headers["Content-Type"] = archivo.type;
+  else if (cuerpo !== undefined) headers["Content-Type"] = "application/json";
   if (token) headers.Authorization = `Bearer ${token}`;
 
   let respuesta: Response;
@@ -90,7 +97,7 @@ export async function api<T>(ruta: string, { metodo = "GET", cuerpo, signal }: O
     respuesta = await fetch(`${URL_SERVIDOR}/api${ruta}`, {
       method: metodo,
       headers,
-      body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo),
+      body: archivo ?? (cuerpo === undefined ? undefined : JSON.stringify(cuerpo)),
       signal,
     });
   } catch (causa) {
@@ -98,6 +105,7 @@ export async function api<T>(ruta: string, { metodo = "GET", cuerpo, signal }: O
     throw new ErrorApi(0, "SIN_CONEXION", "No se pudo conectar con el servidor. Revisa tu conexión y vuelve a intentarlo");
   }
 
+  // Un 204 no trae cuerpo
   const datos: unknown = await respuesta.json().catch(() => null);
 
   if (!respuesta.ok) {
@@ -121,7 +129,7 @@ function leerError(status: number, datos: unknown): ErrorApi {
   return new ErrorApi(status, "ERROR_INTERNO", "El servidor no respondió como se esperaba. Vuelve a intentarlo");
 }
 
-// logoUrl y demás archivos: rutas bajo /uploads del servidor, o URL absolutas
+// logoUrl: una ruta del servidor (/api/negocios/<codigo>/logo?v=…) o una URL absoluta
 export function urlDeArchivo(ruta: string): string {
   return /^https?:\/\//.test(ruta) ? ruta : `${URL_SERVIDOR}${ruta}`;
 }

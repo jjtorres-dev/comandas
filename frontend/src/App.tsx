@@ -1,8 +1,10 @@
+import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router";
 import { Autenticado, IrAlInicio, SoloRoles } from "./layouts/Autenticado";
 import { LayoutLocal } from "./layouts/LayoutLocal";
 import { LayoutMozo } from "./layouts/LayoutMozo";
 import { ProveedorMozo } from "./layouts/ProveedorMozo";
+import { PantallaCarga } from "./componentes/PantallaCarga";
 import { Login } from "./paginas/Login";
 import { Caja } from "./paginas/local/Caja";
 import { Cocina } from "./paginas/local/Cocina";
@@ -13,6 +15,13 @@ import { DetallePedido } from "./paginas/mozo/DetallePedido";
 import { Perfil } from "./paginas/mozo/Perfil";
 import { Resumen } from "./paginas/mozo/Resumen";
 import { TomarPedido } from "./paginas/mozo/TomarPedido";
+
+// La administración se descarga aparte: el celular del mozo no la necesita
+const LayoutAdmin = lazy(() => import("./layouts/LayoutAdmin").then((m) => ({ default: m.LayoutAdmin })));
+const Ventas = lazy(() => import("./paginas/admin/Ventas").then((m) => ({ default: m.Ventas })));
+const Carta = lazy(() => import("./paginas/admin/Carta").then((m) => ({ default: m.Carta })));
+const Personal = lazy(() => import("./paginas/admin/Personal").then((m) => ({ default: m.Personal })));
+const Local = lazy(() => import("./paginas/admin/Local").then((m) => ({ default: m.Local })));
 
 export function App() {
   return (
@@ -41,6 +50,17 @@ export function App() {
             <Route path="cocina" element={<Cocina />} />
             <Route path="caja" element={<Caja />} />
             <Route path="delivery" element={<Delivery />} />
+          </Route>
+        </Route>
+
+        {/* Administración: solo el dueño */}
+        <Route element={<SoloRoles roles={["ADMIN"]} />}>
+          <Route path="/admin" element={<Suspense fallback={<PantallaCarga />}><LayoutAdmin /></Suspense>}>
+            <Route index element={<Navigate to="ventas" replace />} />
+            <Route path="ventas" element={<Ventas />} />
+            <Route path="carta" element={<Carta />} />
+            <Route path="personal" element={<Personal />} />
+            <Route path="local" element={<Local />} />
           </Route>
         </Route>
       </Route>

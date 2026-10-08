@@ -27,7 +27,16 @@ export function useTiempoReal(token: string | null, alPerderSesion: () => void):
       void consultas.invalidateQueries({ queryKey: claves.pedidos });
       void consultas.invalidateQueries({ queryKey: claves.mesas });
     };
-    const invalidarCaja = () => void consultas.invalidateQueries({ queryKey: claves.caja });
+    const invalidarCaja = () => {
+      void consultas.invalidateQueries({ queryKey: claves.caja });
+      void consultas.invalidateQueries({ queryKey: claves.reportes });
+    };
+    // El dueño cambió la carta, las mesas, los motorizados o los datos del negocio
+    const invalidarCarta = () => {
+      for (const clave of [claves.carta, claves.mesas, claves.repartidores, claves.admin, ["sesion"]]) {
+        void consultas.invalidateQueries({ queryKey: clave });
+      }
+    };
 
     socket.on("connect", () => {
       setEstado("en-linea");
@@ -35,6 +44,7 @@ export function useTiempoReal(token: string | null, alPerderSesion: () => void):
       if (yaConecto) {
         invalidarPedidos();
         invalidarCaja();
+        invalidarCarta();
       }
       yaConecto = true;
     });
@@ -58,6 +68,7 @@ export function useTiempoReal(token: string | null, alPerderSesion: () => void):
       // El socket nunca notó el corte: los eventos de ese rato se perdieron igual
       invalidarPedidos();
       invalidarCaja();
+      invalidarCarta();
     };
     window.addEventListener("offline", alCortarse);
     window.addEventListener("online", alVolver);
@@ -65,6 +76,7 @@ export function useTiempoReal(token: string | null, alPerderSesion: () => void):
     socket.on("pedido:creado", invalidarPedidos);
     socket.on("pedido:actualizado", invalidarPedidos);
     socket.on("caja:actualizada", invalidarCaja);
+    socket.on("carta:actualizada", invalidarCarta);
 
     return () => {
       window.removeEventListener("offline", alCortarse);

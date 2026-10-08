@@ -68,8 +68,12 @@ model Negocio {
   ruc       String?
   telefono  String?
   direccion String?
-  // Ruta bajo /uploads (p. ej. "/uploads/negocios/valentina.png") o URL absoluta
+  // Dirección desde la que se sirve el logo: "/api/negocios/<codigo>/logo?v=…"
+  // (la imagen vive en `logo`), o una URL absoluta. null = sin logo
   logoUrl   String?
+  // El logo se guarda en la base: sobrevive a cada despliegue sin disco propio
+  logo      Bytes?
+  logoTipo  String? // "image/png", "image/jpeg" o "image/webp"
   activo    Boolean  @default(true)
   creadoEn  DateTime @default(now())
 
@@ -81,6 +85,11 @@ model Negocio {
   // defecto) y la región que completa la dirección al buscarla en un mapa
   distritos String[] // ["Tarapoto", "Morales", "La Banda de Shilcayo"]
   region    String? // "San Martín, Perú"
+
+  // Cocina: minutos a partir de los cuales una comanda "tarda" (ámbar) y va
+  // "muy tarde" (rojo)
+  umbralTardaMin    Int @default(15)
+  umbralMuyTardeMin Int @default(25)
 
   usuarios     Usuario[]
   areas        Area[]
@@ -304,8 +313,11 @@ model Pedido {
   // el servidor no crea el pedido dos veces
   idCliente String? @unique
 
-  creadoEn DateTime  @default(now())
-  pagadoEn DateTime?
+  creadoEn    DateTime  @default(now())
+  pagadoEn    DateTime?
+  // Cuándo quedó ENTREGADO (null si no lo está). Deshacer una entrega solo se
+  // permite si no se registró ningún pago desde entonces
+  entregadoEn DateTime?
 
   negocio    Negocio      @relation(fields: [negocioId], references: [id])
   mesa       Mesa?        @relation(fields: [mesaId], references: [id])

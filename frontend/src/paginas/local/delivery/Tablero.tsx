@@ -30,6 +30,8 @@ type Props = {
   ahora: number;
   alModificar: (pedido: Pedido) => void;
   alCobrar: (pedido: Pedido) => void;
+  // Tras "Salió" o "Entregado": qué se hizo y cómo deshacerlo (barra de 8 segundos)
+  alDespachar: (texto: string, deshacer: () => Promise<unknown>) => void;
 };
 
 const ACCION = "presionable inline-flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-control px-3 text-lg font-bold whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-60";
@@ -38,7 +40,7 @@ const CONTORNO = `${ACCION} border-2 border-marino bg-superficie text-marino hov
 
 // Los pedidos por teléfono del día, por estado. Las tarjetas cambian de
 // columna solas cuando cocina marca listo o el pedido sale.
-export function Tablero({ pedidos, repartidores, region, negocio, ahora, alModificar, alCobrar }: Props) {
+export function Tablero({ pedidos, repartidores, region, negocio, ahora, alModificar, alCobrar, alDespachar }: Props) {
   const consultas = useQueryClient();
   // En celular se ve una columna a la vez
   const [visible, setVisible] = useState<Columna>("cocina");
@@ -48,11 +50,16 @@ export function Tablero({ pedidos, repartidores, region, negocio, ahora, alModif
 
   const porColumna = (columna: Columna) => pedidos.filter((p) => columnaDe(p) === columna);
 
-  async function hacer(pedido: Pedido, accion: () => Promise<unknown>) {
+  const cambiarEstado = (pedido: Pedido, estado: string) => api(`/pedidos/${pedido.id}/estado`, { metodo: "PATCH", cuerpo: { estado } });
+  const asignar = (pedido: Pedido, repartidorId: string | null) => api(`/pedidos/${pedido.id}/repartidor`, { metodo: "PATCH", cuerpo: { repartidorId } });
+
+  // Cada despacho deja a mano cómo deshacerlo
+  async function hacer(pedido: Pedido, texto: string, accion: () => Promise<unknown>, deshacer: () => Promise<unknown>) {
     setOcupado(pedido.id);
     try {
       await accion();
       void consultas.invalidateQueries({ queryKey: claves.pedidos });
+      alDespachar(`Pedido #${pedido.numero}: ${texto}`, deshacer);
     } catch (causa) {
       toast.error(`Pedido #${pedido.numero}: ${mensajeDe(causa)}`);
     } finally {
@@ -61,12 +68,28 @@ export function Tablero({ pedidos, repartidores, region, negocio, ahora, alModif
   }
 
   const salio = (pedido: Pedido, repartidor: Repartidor | null) =>
-    hacer(pedido, async () => {
-      if (repartidor) await api(`/pedidos/${pedido.id}/repartidor`, { metodo: "PATCH", cuerpo: { repartidorId: repartidor.id } });
-      await api(`/pedidos/${pedido.id}/estado`, { metodo: "PATCH", cuerpo: { estado: "EN_CAMINO" } });
-    });
+    hacer(
+      pedido,
+      "salió",
+      async () => {
+        if (repartidor) await asignar(pedido, repartidor.id);
+        await cambiarEstado(pedido, "EN_CAMINO");
+      },
+      // Vuelve a esperar en el local; si el motorizado se asignó al salir, se le quita
+      async () => {
+        await cambiarEstado(pedido, "LISTO");
+        if (repartidor) await asignar(pedido, null);
+      },
+    );
 
-  const entregado = (pedido: Pedido) => hacer(pedido, () => api(`/pedidos/${pedido.id}/estado`, { metodo: "PATCH", cuerpo: { estado: "ENTREGADO" } }));
+  const entregado = (pedido: Pedido) =>
+    hacer(
+      pedido,
+      "entregado",
+      () => cambiarEstado(pedido, "ENTREGADO"),
+      // Un delivery vuelve a "en camino"; un para llevar, a "listo para recoger"
+      () => cambiarEstado(pedido, pedido.tipo === "DELIVERY" ? "EN_CAMINO" : "LISTO"),
+    );
 
   function alSalir(pedido: Pedido) {
     if (repartidores.length > 1 && !pedido.repartidor) return setEligiendo(pedido);

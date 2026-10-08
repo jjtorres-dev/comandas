@@ -99,7 +99,8 @@ export async function bloquearNegocio(tx: Tx, negocioId: string) {
   const filas = await tx.$queryRaw<{ id: string }[]>`
     SELECT id FROM "Negocio" WHERE id = ${negocioId} AND activo FOR UPDATE`;
   if (filas.length === 0) throw sinPermiso("El negocio no está activo");
-  return tx.negocio.findUniqueOrThrow({ where: { id: negocioId } });
+  // Sin la imagen del logo: no hace falta para tomar un pedido
+  return tx.negocio.findUniqueOrThrow({ where: { id: negocioId }, omit: { logo: true } });
 }
 
 // Bloquea el pedido durante la transacción para que dos cambios simultáneos
@@ -169,11 +170,13 @@ export async function recalcular(tx: Tx, pedidoId: string) {
     },
   });
 
+  const estado = calcularEstadoPedido(pedido.estado, pedido.items.map((i) => i.estado));
+  // Un pedido cancelado no debe nada: ni envío, ni tapers, ni descuento
+  const cancelado = estado === EstadoPedido.CANCELADO;
   const subtotal = sumar(pedido.items.map((i) => i.precioUnitario.times(i.cantidad)));
-  const total = Prisma.Decimal.max(
-    0,
-    subtotal.plus(pedido.costoEnvio).plus(pedido.cargoTapers).minus(pedido.descuento),
-  );
+  const total = cancelado
+    ? CERO
+    : Prisma.Decimal.max(0, subtotal.plus(pedido.costoEnvio).plus(pedido.cargoTapers).minus(pedido.descuento));
 
   const totalPagado = sumar(pedido.pagos.map((p) => p.monto));
   if (totalPagado.greaterThan(total)) {
@@ -183,13 +186,17 @@ export async function recalcular(tx: Tx, pedidoId: string) {
   }
   // Queda pagado cuando lo cobrado iguala el total; eso es lo que libera la mesa
   const recienPagado = !pedido.pagado && totalPagado.greaterThan(CERO) && totalPagado.equals(total);
+  // La hora de entrega se fija al quedar ENTREGADO y se borra si deja de estarlo
+  const entregado = estado === EstadoPedido.ENTREGADO;
 
   await tx.pedido.update({
     where: { id: pedidoId },
     data: {
       subtotal,
       total,
-      estado: calcularEstadoPedido(pedido.estado, pedido.items.map((i) => i.estado)),
+      estado,
+      ...(cancelado ? { costoEnvio: CERO, cantidadTapers: 0, cargoTapers: CERO, descuento: CERO } : {}),
+      ...(entregado ? (pedido.entregadoEn ? {} : { entregadoEn: new Date() }) : { entregadoEn: null }),
       ...(recienPagado ? { pagado: true, pagadoEn: new Date() } : {}),
     },
   });

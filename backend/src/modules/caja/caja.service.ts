@@ -7,7 +7,7 @@ import { emitirANegocio } from "../../realtime/socket";
 import { bloquearNegocio } from "../pedidos/pedidos.core";
 import type { DatosAbrirCaja, DatosCerrarCaja } from "./caja.schemas";
 
-const incluirTurno = {
+export const incluirTurno = {
   abiertoPor: { select: { id: true, nombre: true } },
   cerradoPor: { select: { id: true, nombre: true } },
   pagos: { select: { pedidoId: true, metodo: true, monto: true, recibido: true, anuladoEn: true } },
@@ -17,7 +17,7 @@ type TurnoCompleto = Prisma.TurnoCajaGetPayload<{ include: typeof incluirTurno }
 
 // Turno con su resumen. `monto` ya es neto de vuelto, así que el efectivo
 // esperado en el cajón es montoInicial + efectivo cobrado.
-function resumir(turno: TurnoCompleto) {
+export function resumir(turno: TurnoCompleto) {
   // Los pagos anulados siguen guardados, pero no cuentan en ningún total
   const pagos = turno.pagos.filter((p) => p.anuladoEn === null);
   const porMetodo = (metodo: MetodoPago) => sumar(pagos.filter((p) => p.metodo === metodo).map((p) => p.monto));

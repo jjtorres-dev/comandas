@@ -11,3 +11,13 @@ export async function datosPublicos(codigo: string) {
   if (!negocio) throw noEncontrado("No existe un negocio con ese código");
   return negocio;
 }
+
+// La imagen del logo, tal como se subió. 404 si el negocio no tiene.
+export async function logoDe(codigo: string) {
+  const negocio = await prisma.negocio.findFirst({
+    where: { codigo, activo: true },
+    select: { logo: true, logoTipo: true },
+  });
+  if (!negocio?.logo || !negocio.logoTipo) throw noEncontrado("Este negocio no tiene logo");
+  return { imagen: negocio.logo, tipo: negocio.logoTipo };
+}

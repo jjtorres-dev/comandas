@@ -148,6 +148,8 @@ son variantes del mismo tono para cumplir contraste.
 - **Turquesa de carta** (`primario`): cabecera, campo superior del login y
   botón principal. Nunca lleva texto blanco (2.63:1); lleva `tinta` (5.69:1).
 - **Turquesa presionado** (`primario-presionado`): hover del botón principal.
+- **Dato** (`dato`, el mismo #0AA19C): las barras y columnas de los gráficos de
+  Ventas. Es el único color de datos.
 - **Turquesa fuerte** (`primario-fuerte`): íconos y texto turquesa sobre blanco
   (5.18:1).
 - **Turquesa profundo** (`primario-profundo`): lo mismo cuando se necesita AAA
@@ -472,6 +474,49 @@ llamada. Dos vistas: el tablero del día y "Nuevo pedido" a pantalla completa.
 - **Rendición:** franja `alerta-suave` con borde `tinta` sobre el tablero,
   "Motorizado debe rendir S/ 92.50 (2 pedidos)".
 
+### Administración (`/admin`)
+La usa el dueño, casi siempre desde su celular entre plato y plato, a veces
+con calma en la PC. No es hora punta: aquí cabe más texto de ayuda, pero las
+medidas son las de siempre (texto de 16 px o más, destinos de 48 px).
+
+- **Navegación:** cuatro secciones (Ventas, Carta, Personal, Local). En el
+  celular van abajo, como en el mozo; desde 1024 px, como pestañas en la
+  cabecera, igual que en `/local`. El paso entre `/local` y `/admin` es un
+  botón de la cabecera (engranaje y olla), solo para quien es dueño.
+- **Precio editable:** en la lista de la carta cada precio es un botón con
+  borde y lápiz. Al tocarlo se vuelve campo ahí mismo, sobre `primario-suave`,
+  con "Guardar" y una X; Enter guarda y Escape cancela. Un plato con varios
+  precios muestra uno por variante, con su nombre delante.
+- **Fichas:** crear y editar se hacen en el diálogo centrado. El botón del pie
+  dice qué falta para poder guardar, en una línea encima de él.
+- **Desactivar y eliminar:** lo que ya tiene historial solo se apaga, con un
+  interruptor que dice "Sí" o "No"; en su lugar del botón Eliminar hay una
+  nota gris que explica por qué. Lo desactivado sigue en la lista del dueño
+  con la píldora gris del ojo tachado. Eliminar usa la segunda pulsación.
+- **Orden:** flechas de subir y bajar (48 px), nunca arrastrar.
+
+### Gráficos (Ventas)
+Hechos con la guía `dataviz`. Cada gráfico es una sola serie, así que no hay
+leyenda: lo dice su título.
+
+- **Un solo color de dato:** `dato` (#0AA19C, el turquesa presionado), validado
+  con el script de la guía (contraste 3:1 sobre blanco). El texto nunca lleva
+  ese color: valores y nombres van en `tinta` y `marino`. Ámbar, rojo y lima
+  siguen reservados para estados (cómo cerró un turno).
+- **La cifra principal** es una sola por pantalla ("Cobrado hoy"), en 60 a 72
+  px, con la misma tipografía. Debajo, cuatro cifras de apoyo.
+- **Barras horizontales** para comparar pocas cosas con nombre largo (formas
+  de pago, platos): nombre y valor escritos, barra de 16 px con el extremo
+  redondeado 4 px.
+- **Columnas** para lo que pasa en el tiempo (por día, por hora): 24 px de
+  ancho como máximo, 2 px de aire entre ellas, eje en línea fina de 1 px.
+  Solo se rotula la más alta; el resto se lee al pasar el mouse, al tocar o
+  con el teclado (detalle marino con texto blanco), y siempre en "Ver en
+  tabla".
+- **El periodo** se elige en una sola fila, arriba de todo lo que cambia con
+  él. Al cambiarlo, lo anterior se queda atenuado hasta que llega lo nuevo.
+- Sin tortas, sin doble eje, sin colores por valor.
+
 ### Diálogo
 Para una corrección o una confirmación en `/local` (ajustar, cambiar método,
 anular, cerrar caja, modificar un pedido por teléfono, en su versión ancha): `<dialog>` modal centrado, borde `tinta` de 3 px, título,
@@ -506,7 +551,8 @@ que acaba de pasar: no se disparan al abrir una pantalla ni se repiten en bucle.
 ### Don't:
 - **Don't** poner texto blanco sobre turquesa, naranja, lima o ámbar.
 - **Don't** escribir el nombre o el logo de un negocio en el código.
-- **Don't** usar texto de menos de 16 px ni bordes de 1 px en controles.
+- **Don't** usar texto de menos de 16 px ni bordes de 1 px en controles (la
+  línea de 1 px queda solo para los ejes y las tablas de los gráficos).
 - **Don't** usar el naranja para estados: es acento; la alerta es ámbar.
 - **Don't** repetir la ola fuera del login ni añadir más formas decorativas.
 - **Don't** animar nada por encima de 300 ms ni acciones que se repiten todo

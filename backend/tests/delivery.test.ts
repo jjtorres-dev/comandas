@@ -399,7 +399,7 @@ describe("despacho de delivery", () => {
     expect(entregado.body.pedido.estado).toBe("ENTREGADO");
     expect(entregado.body.pedido.items.every((i: { estado: string }) => i.estado === "ENTREGADO")).toBe(true);
 
-    const otroEstado = await patch(cocina, `${id}/estado`, { estado: "LISTO" });
+    const otroEstado = await patch(cocina, `${id}/estado`, { estado: "PREPARANDO" });
     expect(otroEstado.status).toBe(400);
   });
 
@@ -547,7 +547,15 @@ describe("pedidos por teléfono: pago previsto, distrito y correcciones", () => 
 
     const res = await patch(cocina, `${pedido.id}/cancelar`, { motivo: "El cliente ya no lo quiere" });
     expect(res.status).toBe(200);
-    expect(res.body.pedido).toMatchObject({ estado: "CANCELADO", total: "3.00", motivoCancelacion: "El cliente ya no lo quiere" });
+    // Cancelado no debe nada: ni envío ni tapers
+    expect(res.body.pedido).toMatchObject({
+      estado: "CANCELADO",
+      total: "0.00",
+      costoEnvio: "0.00",
+      cantidadTapers: 0,
+      cargoTapers: "0.00",
+      motivoCancelacion: "El cliente ya no lo quiere",
+    });
     expect(res.body.pedido.items.every((i: { estado: string }) => i.estado === "CANCELADO")).toBe(true);
     expect((await patch(cocina, `${pedido.id}/cancelar`, { motivo: "Otra vez" })).body.error.codigo).toBe("PEDIDO_CANCELADO");
 
@@ -562,5 +570,70 @@ describe("pedidos por teléfono: pago previsto, distrito y correcciones", () => 
     await patch(cocina, `${enCamino.id}/items/estado`, { itemIds: enCamino.items.map((i: { id: string }) => i.id), estado: "LISTO" });
     await patch(cocina, `${enCamino.id}/estado`, { estado: "EN_CAMINO" });
     expect((await patch(cocina, `${enCamino.id}/cancelar`, { motivo: "Tarde" })).body.error.codigo).toBe("PEDIDO_YA_SALIO");
+  });
+});
+
+describe("deshacer el despacho", () => {
+  const listoParaSalir = async () => {
+    const pedido = (await crearPedido(cocina, { tipo: "DELIVERY", cliente: rosa, items: dosCevichesYGaseosa })).body.pedido;
+    await patch(cocina, `${pedido.id}/items/estado`, { itemIds: pedido.items.map((i: { id: string }) => i.id), estado: "LISTO" });
+    return pedido as { id: string; items: { id: string }[] };
+  };
+  const estado = (id: string, nuevo: string) => patch(cocina, `${id}/estado`, { estado: nuevo });
+
+  it("de EN_CAMINO se vuelve a LISTO, y de ENTREGADO a EN_CAMINO con los platos otra vez listos", async () => {
+    const pedido = await listoParaSalir();
+    // LISTO solo deshace: un pedido que no salió no "vuelve" a listo
+    expect((await estado(pedido.id, "LISTO")).body.error.codigo).toBe("PEDIDO_NO_LISTO");
+
+    await estado(pedido.id, "EN_CAMINO");
+    const noSalio = await estado(pedido.id, "LISTO");
+    expect(noSalio.status).toBe(200);
+    expect(noSalio.body.pedido.estado).toBe("LISTO");
+
+    await estado(pedido.id, "EN_CAMINO");
+    const entregado = await estado(pedido.id, "ENTREGADO");
+    expect(entregado.body.pedido.estado).toBe("ENTREGADO");
+    const horas = entregado.body.pedido.items.map((i: { listoEn: string }) => i.listoEn);
+
+    const deVuelta = await estado(pedido.id, "EN_CAMINO");
+    expect(deVuelta.status).toBe(200);
+    expect(deVuelta.body.pedido.estado).toBe("EN_CAMINO");
+    expect(deVuelta.body.pedido.items.map((i: { estado: string }) => i.estado)).toEqual(["LISTO", "LISTO"]);
+    // Deshacer no los vuelve "recién listos"
+    expect(deVuelta.body.pedido.items.map((i: { listoEn: string }) => i.listoEn)).toEqual(horas);
+    expect((await prisma.pedido.findUniqueOrThrow({ where: { id: pedido.id } })).entregadoEn).toBeNull();
+  });
+
+  it("una entrega no se deshace si ya se cobró después; sí, si el pago era anterior", async () => {
+    await request(app).post("/api/caja/abrir").set(conToken(cocina)).send({ montoInicial: 0 });
+    const pagar = (id: string, monto: number) => request(app).post(`/api/pedidos/${id}/pagos`).set(conToken(cocina)).send({ pagos: [{ metodo: "YAPE", monto }] });
+
+    // Pagó por adelantado, se entrega: la entrega se puede deshacer
+    const adelantado = await listoParaSalir();
+    await pagar(adelantado.id, 48);
+    await estado(adelantado.id, "EN_CAMINO");
+    await estado(adelantado.id, "ENTREGADO");
+    expect((await estado(adelantado.id, "EN_CAMINO")).status).toBe(200);
+
+    // Se entrega y después se cobra: ya no
+    const contraentrega = await listoParaSalir();
+    await estado(contraentrega.id, "EN_CAMINO");
+    await estado(contraentrega.id, "ENTREGADO");
+    await pagar(contraentrega.id, 48);
+    const res = await estado(contraentrega.id, "EN_CAMINO");
+    expect(res.status).toBe(409);
+    expect(res.body.error.codigo).toBe("PEDIDO_CON_PAGOS");
+  });
+
+  it("para llevar: de ENTREGADO vuelve a LISTO (no sale en camino)", async () => {
+    const pedido = (await crearPedido(cocina, { tipo: "PARA_LLEVAR", cliente: { telefono: "911222333" }, items: dosCevichesYGaseosa })).body.pedido;
+    await patch(cocina, `${pedido.id}/items/estado`, { itemIds: pedido.items.map((i: { id: string }) => i.id), estado: "LISTO" });
+    await estado(pedido.id, "ENTREGADO");
+
+    expect((await estado(pedido.id, "EN_CAMINO")).body.error.codigo).toBe("NO_ES_DELIVERY");
+    const deVuelta = await estado(pedido.id, "LISTO");
+    expect(deVuelta.body.pedido).toMatchObject({ estado: "LISTO" });
+    expect(deVuelta.body.pedido.items.every((i: { estado: string }) => i.estado === "LISTO")).toBe(true);
   });
 });

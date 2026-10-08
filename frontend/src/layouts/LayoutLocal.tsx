@@ -1,8 +1,9 @@
-import { CashRegisterIcon, CookingPotIcon, type Icon, MonitorIcon, MopedIcon, PlayIcon, SignOutIcon, SpeakerSlashIcon } from "@phosphor-icons/react";
+import { CashRegisterIcon, CookingPotIcon, GearSixIcon, type Icon, MonitorIcon, MopedIcon, PlayIcon, SpeakerSlashIcon } from "@phosphor-icons/react";
 import { motion } from "motion/react";
-import { useCallback, useEffect, useState } from "react";
-import { NavLink, Outlet } from "react-router";
+import { useCallback } from "react";
+import { Link, NavLink, Outlet } from "react-router";
 import { Cabecera } from "../componentes/Cabecera";
+import { Salir } from "../componentes/Salir";
 import { abrirCocina, usePanel } from "../local/panel";
 import { useAvisosNuevos } from "../local/useAvisosNuevos";
 import { useSesion } from "../sesion/contexto";
@@ -18,6 +19,7 @@ const PESTANAS: { ruta: string; nombre: string; icono: Icon; escala?: string }[]
 // Cocina y caja: una sola persona frente a un monitor, a veces lejos de él.
 // Ancho completo, pestañas grandes y texto marino sobre blanco (contraste AAA).
 export function LayoutLocal() {
+  const { usuario } = useSesion();
   const { abierta, pantalla, sonido } = usePanel();
   // Los avisos de pedido nuevo suenan en cualquier pestaña del local
   const sinEmpezar = useAvisosNuevos();
@@ -39,7 +41,24 @@ export function LayoutLocal() {
       {/* La cabecera publica su alto (cambia cuando las pestañas bajan a una segunda fila):
           lo que queda fijo debajo, como el filtro de cocina, se apoya en él */}
       <div ref={medirCabecera} className="sticky top-0 z-20">
-      <Cabecera acciones={<Salir />}>
+      <Cabecera
+        acciones={
+          <>
+            {/* Solo el dueño: de la cocina a la administración sin cerrar sesión */}
+            {usuario?.roles.includes("ADMIN") && (
+              <Link
+                to="/admin"
+                aria-label="Administración"
+                className="presionable inline-flex h-12 min-w-12 items-center justify-center gap-2 rounded-control bg-superficie px-3 text-lg font-bold text-marino hover:bg-primario-suave"
+              >
+                <GearSixIcon aria-hidden="true" weight="bold" className="size-6" />
+                <span className="hidden xl:inline">Administración</span>
+              </Link>
+            )}
+            <Salir />
+          </>
+        }
+      >
         <nav aria-label="Secciones">
           <ul className="grid grid-cols-3 gap-1 rounded-control bg-superficie p-1 lg:inline-grid lg:min-w-[34rem]">
             {PESTANAS.map(({ ruta, nombre, icono: Icono, escala = "" }) => (
@@ -111,36 +130,6 @@ export function LayoutLocal() {
           </>
         )}
       </main>
-    </div>
-  );
-}
-
-// Salir pide una segunda pulsación: un toque accidental en plena hora punta
-// no debe dejar la cocina sin pantalla.
-function Salir() {
-  const { usuario, cerrarSesion } = useSesion();
-  const [confirmando, setConfirmando] = useState(false);
-
-  useEffect(() => {
-    if (!confirmando) return;
-    const reloj = setTimeout(() => setConfirmando(false), 4000);
-    return () => clearTimeout(reloj);
-  }, [confirmando]);
-
-  return (
-    <div className="flex items-center gap-3">
-      <p className="hidden max-w-48 truncate text-xl font-bold xl:block">{usuario?.nombre}</p>
-      <button
-        type="button"
-        onClick={() => (confirmando ? cerrarSesion() : setConfirmando(true))}
-        aria-label={confirmando ? "Confirmar: cerrar sesión" : "Cerrar sesión"}
-        className={`presionable inline-flex h-12 min-w-12 cursor-pointer items-center justify-center gap-2 rounded-control px-3 text-lg font-bold ${
-          confirmando ? "bg-peligro text-white" : "bg-superficie text-marino hover:bg-primario-suave"
-        }`}
-      >
-        <SignOutIcon aria-hidden="true" weight="bold" className="size-6" />
-        <span className={confirmando ? "" : "hidden sm:inline"}>{confirmando ? "¿Salir?" : "Salir"}</span>
-      </button>
     </div>
   );
 }

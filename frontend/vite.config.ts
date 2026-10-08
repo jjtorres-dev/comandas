@@ -5,7 +5,7 @@ import { VitePWA } from "vite-plugin-pwa";
 
 // Rutas que atiende el backend. En desarrollo Vite las reenvía, así el celular
 // solo necesita llegar al puerto 5173 y no hay CORS de por medio.
-const RUTAS_BACKEND = ["/api", "/uploads"];
+const RUTAS_BACKEND = ["/api"];
 
 // Cuando el navegador cierra un socket (logout, recarga), el proxy de WebSocket
 // ve un ECONNRESET o EPIPE y Vite lo registra como error. Es un cierre normal:
@@ -57,7 +57,7 @@ export default defineConfig(({ mode }) => {
         },
         workbox: {
           // La API, los logos y el tiempo real nunca salen de la caché
-          navigateFallbackDenylist: [/^\/api\//, /^\/uploads\//, /^\/socket\.io\//],
+          navigateFallbackDenylist: [/^\/api\//, /^\/socket\.io\//],
         },
       }),
     ],

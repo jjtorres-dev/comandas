@@ -5,14 +5,15 @@
 // ============================================================
 
 import "dotenv/config";
+import { readFileSync } from "node:fs";
 import bcrypt from "bcrypt";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient, Rol } from "../src/generated/prisma/client";
 
 const NOMBRE_NEGOCIO = "Cevichería Valentina";
 const CODIGO_NEGOCIO = "valentina"; // con este código se inicia sesión
-// Archivo en backend/public/uploads/negocios/, servido en /uploads
-const LOGO_NEGOCIO = "/uploads/negocios/valentina.png";
+// El logo se guarda en la base de datos; lo sirve GET /api/negocios/<codigo>/logo
+const LOGO_NEGOCIO = readFileSync(new URL("../../design-ref/logo.png", import.meta.url));
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
@@ -170,7 +171,9 @@ async function crearNegocio(tx: Tx, usuarios: { usuario: string; nombre: string;
       codigo: CODIGO_NEGOCIO,
       nombre: NOMBRE_NEGOCIO,
       direccion: "Tarapoto, Perú",
-      logoUrl: LOGO_NEGOCIO,
+      logo: LOGO_NEGOCIO,
+      logoTipo: "image/png",
+      logoUrl: `/api/negocios/${CODIGO_NEGOCIO}/logo?v=1`,
       costoEnvioDefault: "3.00",
       precioTaper: "1.00",
       // Reparto: el primer distrito es el de por defecto
@@ -191,7 +194,7 @@ async function crearNegocio(tx: Tx, usuarios: { usuario: string; nombre: string;
     data: Array.from({ length: 7 }, (_, i) => ({ negocioId, nombre: `Mesa ${i + 1}`, orden: i + 1 })),
   });
 
-  await tx.repartidor.create({ data: { negocioId, nombre: "Motorizado", telefono: "999888777" } });
+  await tx.repartidor.create({ data: { negocioId, nombre: "José Falcón", telefono: "916386642" } });
 
   await tx.notaRapida.createMany({
     data: NOTAS_RAPIDAS.map((texto, i) => ({ negocioId, texto, orden: i + 1 })),

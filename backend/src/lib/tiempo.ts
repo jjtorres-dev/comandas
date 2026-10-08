@@ -34,3 +34,23 @@ export function fechaHoraLocal(fecha: Date, zona: string = ZONA_NEGOCIO): string
     hourCycle: "h23",
   }).format(fecha);
 }
+
+// Instante en que empieza un día "AAAA-MM-DD" en la zona del negocio
+export function inicioDeFecha(fecha: string, zona: string = ZONA_NEGOCIO): Date {
+  // El mediodía UTC cae en ese mismo día en cualquier zona de América
+  return inicioDelDia(new Date(`${fecha}T12:00:00Z`), zona);
+}
+
+// Día ("AAAA-MM-DD") y hora (0 a 23) de un instante en la zona del negocio
+export function diaYHora(fecha: Date, zona: string = ZONA_NEGOCIO): { dia: string; hora: number } {
+  const partes = new Intl.DateTimeFormat("en-CA", {
+    timeZone: zona,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(fecha);
+  const v = (tipo: string) => partes.find((p) => p.type === tipo)?.value ?? "";
+  return { dia: `${v("year")}-${v("month")}-${v("day")}`, hora: Number(v("hour")) };
+}

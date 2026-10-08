@@ -4,7 +4,9 @@ import { intentosDeLogin } from "../src/modules/auth/auth.routes";
 import { consultasDeNegocio } from "../src/modules/negocios/negocios.routes";
 import { app, CLAVE, conToken, crearNegocio, limpiarBase, prisma, tokenDe, type NegocioDePrueba } from "./helpers";
 
-const LOGO = "/uploads/negocios/valentina.png";
+const LOGO = "/api/negocios/negocio-a/logo?v=1";
+// Un PNG mínimo (1×1) como logo de prueba
+const IMAGEN = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
 
 let a: NegocioDePrueba;
 let b: NegocioDePrueba;
@@ -90,15 +92,26 @@ describe("logo del negocio en la sesión", () => {
   });
 });
 
-describe("GET /uploads", () => {
-  it("sirve el logo sin autenticación", async () => {
-    const res = await request(app).get(LOGO);
+describe("GET /api/negocios/:codigo/logo", () => {
+  it("sirve la imagen guardada en la base, sin autenticación y con su tipo", async () => {
+    await prisma.negocio.update({ where: { id: a.negocio.id }, data: { logo: IMAGEN, logoTipo: "image/png" } });
 
+    const res = await request(app).get("/api/negocios/negocio-a/logo");
     expect(res.status).toBe(200);
     expect(res.headers["content-type"]).toBe("image/png");
+    expect(res.headers["cache-control"]).toContain("max-age");
+    expect(Buffer.compare(res.body, IMAGEN)).toBe(0);
   });
 
-  it("un archivo inexistente responde 404", async () => {
-    expect((await request(app).get("/uploads/negocios/no-existe.png")).status).toBe(404);
+  it("404 si el negocio no tiene logo o no existe; /uploads ya no se sirve", async () => {
+    expect((await request(app).get("/api/negocios/negocio-b/logo")).status).toBe(404);
+    expect((await request(app).get("/api/negocios/no-existe/logo")).status).toBe(404);
+    expect((await request(app).get("/uploads/negocios/valentina.png")).status).toBe(404);
+  });
+
+  it("la imagen no viaja en las respuestas del negocio", async () => {
+    await prisma.negocio.update({ where: { id: a.negocio.id }, data: { logo: IMAGEN, logoTipo: "image/png" } });
+    const res = await request(app).get("/api/negocios/negocio-a/publico");
+    expect(Object.keys(res.body)).toEqual(["nombre", "logoUrl"]);
   });
 });

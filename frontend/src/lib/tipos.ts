@@ -51,7 +51,10 @@ export type Area = { id: string; nombre: string };
 // Lo que hace falta para tomar un pedido por teléfono y decirle el total al cliente
 export type Reparto = { costoEnvioDefault: string; precioTaper: string; distritos: string[]; region: string | null };
 
-export type Carta = { categorias: Categoria[]; notasRapidas: NotaRapida[]; areas: Area[]; reparto: Reparto };
+// Minutos a partir de los cuales una comanda tarda (ámbar) o va muy tarde (rojo)
+export type UmbralesCocina = { tardaMin: number; muyTardeMin: number };
+
+export type Carta = { categorias: Categoria[]; notasRapidas: NotaRapida[]; areas: Area[]; reparto: Reparto; cocina: UmbralesCocina };
 
 // ---------- Pedidos y mesas ----------
 
@@ -227,3 +230,72 @@ export type ClienteGuardado = {
 };
 
 export type Repartidor = { id: string; nombre: string; telefono: string | null };
+
+// ---------- Administración ----------
+
+export type ProductoAdmin = {
+  id: string;
+  nombre: string;
+  categoriaId: string;
+  areaId: string;
+  tapers: number;
+  activo: boolean;
+  esCombo: boolean;
+  comboCantidad: number | null;
+  // false si ya se vendió: solo se puede desactivar
+  eliminable: boolean;
+  variantes: Variante[];
+  opcionesCombo: OpcionCombo[];
+};
+
+export type CategoriaAdmin = { id: string; nombre: string; activo: boolean; eliminable: boolean; productos: ProductoAdmin[] };
+
+export type CartaAdmin = { areas: Area[]; categorias: CategoriaAdmin[] };
+
+export type UsuarioAdmin = Usuario & { activo: boolean; creadoEn: string };
+
+// Mesa, motorizado o nota rápida en las listas de administración
+export type ElementoAdmin = { id: string; activo: boolean; eliminable: boolean };
+export type MesaAdmin = ElementoAdmin & { nombre: string };
+export type RepartidorAdmin = ElementoAdmin & { nombre: string; telefono: string | null };
+export type NotaAdmin = ElementoAdmin & { texto: string };
+
+export type NegocioAdmin = Negocio & {
+  costoEnvioDefault: string;
+  precioTaper: string;
+  distritos: string[];
+  region: string | null;
+  umbralTardaMin: number;
+  umbralMuyTardeMin: number;
+};
+
+export type Correccion = {
+  id: string;
+  tipo: "METODO" | "ANULACION";
+  detalle: { motivo?: string; antes?: { metodo: MetodoPago }; despues?: { metodo: MetodoPago } };
+  creadoEn: string;
+  usuario: string;
+  monto: string;
+  pedido: { id: string; numero: number };
+};
+
+export type Reporte = {
+  desde: string;
+  hasta: string;
+  // Lo cobrado en esos días (los pagos anulados no cuentan)
+  ventas: {
+    total: string;
+    pedidos: number;
+    ticketPromedio: string;
+    porMetodo: Record<MetodoPago, string>;
+    porTipo: Record<TipoPedido, string>;
+    porDia: { fecha: string; total: string; pedidos: number }[];
+  };
+  porCobrar: { total: string; pedidos: number };
+  pedidosTomados: number;
+  platos: { nombre: string; cantidad: number; total: string }[];
+  porHora: { hora: number; pedidos: number }[];
+  cocina: { promedioMin: number | null; platos: number; porArea: { area: string; promedioMin: number | null; platos: number }[] };
+  turnos: Turno[];
+  correcciones: Correccion[];
+};

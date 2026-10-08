@@ -7,7 +7,7 @@ import { boton, con, limpiarActivos, tokenDe } from "./ayudas";
 // su pedido; y el motorizado rinde todo de una sola vez.
 
 type Item = { id: string; nombreProducto: string; notas: string[]; idRonda: string; estado: string };
-type Pedido = { id: string; numero: number; total: string; pagado: boolean; estado: string; distritoEntrega: string | null; items: Item[] };
+type Pedido = { id: string; numero: number; total: string; pagado: boolean; estado: string; distritoEntrega: string | null; repartidor: { nombre: string } | null; items: Item[] };
 
 test.afterAll(async ({ request }) => {
   await limpiarActivos(request);
@@ -44,6 +44,7 @@ test("delivery: pedido nuevo, modificación, salida, entrega, repetir pedido y r
   const tarjeta = (numero: number) => page.getByRole("article", { name: new RegExp(`^Pedido ${numero},`) });
   const buscador = page.getByRole("combobox", { name: "Buscar en la carta" });
   const resumen = page.getByRole("region", { name: "Resumen" });
+  const barraDeshacer = page.getByRole("status").filter({ has: page.getByRole("button", { name: "Deshacer" }) });
   // Solo las líneas del pedido, sin las notas que cada una lleva dentro
   const anotados = (p: Page) => p.getByRole("list", { name: "Platos anotados" }).locator("> li");
 
@@ -150,22 +151,39 @@ test("delivery: pedido nuevo, modificación, salida, entrega, repetir pedido y r
   await test.step("\"Salió\" asigna al único motorizado, y el resumen para él lleva mapa, total y vuelto", async () => {
     await tarjeta(primero.numero).getByRole("button", { name: "Salió" }).click();
     await expect(columna("En camino").getByRole("article")).toHaveCount(1);
-    await expect(tarjeta(primero.numero)).toContainText("Motorizado");
+    await expect(tarjeta(primero.numero)).toContainText("José Falcón");
+
+    // Un clic de más se deshace: vuelve a esperar en el local, sin motorizado
+    await barraDeshacer.getByRole("button", { name: "Deshacer" }).click();
+    await expect(columna("Listo para salir").getByRole("article")).toHaveCount(1);
+    await expect.poll(async () => (await porTelefono())[0]).toMatchObject({ estado: "LISTO", repartidor: null });
+    await tarjeta(primero.numero).getByRole("button", { name: "Salió" }).click();
+    await expect(columna("En camino").getByRole("article")).toHaveCount(1);
 
     await tarjeta(primero.numero).getByRole("button", { name: "Enviar al motorizado" }).click();
     const abiertas = await page.evaluate(() => (window as unknown as { abiertas: string[] }).abiertas);
     expect(abiertas).toHaveLength(1);
-    expect(abiertas[0]).toMatch(/^https:\/\/wa\.me\/51999888777\?text=/);
+    expect(abiertas[0]).toMatch(/^https:\/\/wa\.me\/51916386642\?text=/);
     const mensaje = decodeURIComponent(abiertas[0].split("?text=")[1]);
     expect(mensaje).toContain("Rosa Pérez · 987111222");
     expect(mensaje).toContain("Dirección: Jr. San Martín 245, Morales");
     expect(mensaje).toContain("Referencia: Portón verde, tocar fuerte");
     expect(mensaje).toContain("https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent("Jr. San Martín 245, Morales, San Martín, Perú"));
+    // La lista de platos para revisar la bolsa, sin las notas de cocina
+    expect(mensaje).toContain("Lleva:\n1 x Ceviche Simple\n1 x Combo Doble (Leche de Tigre + Chaufa de Mariscos)\n1 x Gaseosa Personal");
+    expect(mensaje).not.toContain("Sin cebolla");
     expect(mensaje).toContain("Cobrar S/ 56.00 en efectivo");
     expect(mensaje).toContain("Paga con S/ 100.00: lleva S/ 44.00 de vuelto");
   });
 
   await test.step("\"Entregado\": queda por cobrar, y aparece lo que el motorizado debe rendir", async () => {
+    await tarjeta(primero.numero).getByRole("button", { name: "Entregado" }).click();
+    await expect(columna("Entregado").getByRole("article")).toHaveCount(1);
+
+    // También se deshace: vuelve a "En camino" con sus platos listos
+    await expect(barraDeshacer).toContainText(`Pedido #${primero.numero}: entregado`);
+    await barraDeshacer.getByRole("button", { name: "Deshacer" }).click();
+    await expect(columna("En camino").getByRole("article")).toHaveCount(1);
     await tarjeta(primero.numero).getByRole("button", { name: "Entregado" }).click();
     await expect(columna("Entregado").getByRole("article")).toHaveCount(1);
     await expect(tarjeta(primero.numero).getByRole("button", { name: "Cobrar S/ 56.00" })).toBeVisible();

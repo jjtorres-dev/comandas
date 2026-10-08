@@ -1,6 +1,6 @@
 import { QueryClient, queryOptions } from "@tanstack/react-query";
 import { api, ErrorApi } from "./api";
-import type { Carta, Cobrado, Cuenta, Mesa, Pedido, Repartidor, Turno } from "./tipos";
+import type { Carta, CartaAdmin, Cobrado, Cuenta, Mesa, MesaAdmin, NegocioAdmin, NotaAdmin, Pedido, Repartidor, RepartidorAdmin, Reporte, Turno, UsuarioAdmin } from "./tipos";
 
 // Claves de TanStack Query. Los eventos de Socket.IO invalidan por estas raíces.
 export const claves = {
@@ -10,6 +10,11 @@ export const claves = {
   mesas: ["mesas"] as const,
   caja: ["caja"] as const,
   carta: ["carta"] as const,
+  repartidores: ["repartidores"] as const,
+  // Todo lo de /admin: se vuelve a pedir con cada cambio de carta o del local
+  admin: ["admin"] as const,
+  // Los reportes cambian con cada cobro, no con la carta
+  reportes: ["reportes"] as const,
 };
 
 export const clienteDeConsultas = new QueryClient({
@@ -65,7 +70,45 @@ export const consultaPorTelefono = queryOptions({
 });
 
 export const consultaRepartidores = queryOptions({
-  queryKey: ["repartidores"] as const,
+  queryKey: claves.repartidores,
   queryFn: async ({ signal }) => (await api<{ repartidores: Repartidor[] }>("/repartidores", { signal })).repartidores,
   staleTime: 5 * 60_000,
 });
+
+// ---------- Administración (solo ADMIN) ----------
+
+export const consultaCartaAdmin = queryOptions({
+  queryKey: [...claves.admin, "carta"] as const,
+  queryFn: ({ signal }) => api<CartaAdmin>("/admin/carta", { signal }),
+});
+
+export const consultaUsuarios = queryOptions({
+  queryKey: [...claves.admin, "usuarios"] as const,
+  queryFn: async ({ signal }) => (await api<{ usuarios: UsuarioAdmin[] }>("/admin/usuarios", { signal })).usuarios,
+});
+
+export const consultaMesasAdmin = queryOptions({
+  queryKey: [...claves.admin, "mesas"] as const,
+  queryFn: async ({ signal }) => (await api<{ mesas: MesaAdmin[] }>("/admin/mesas", { signal })).mesas,
+});
+
+export const consultaRepartidoresAdmin = queryOptions({
+  queryKey: [...claves.admin, "repartidores"] as const,
+  queryFn: async ({ signal }) => (await api<{ repartidores: RepartidorAdmin[] }>("/admin/repartidores", { signal })).repartidores,
+});
+
+export const consultaNotasAdmin = queryOptions({
+  queryKey: [...claves.admin, "notas"] as const,
+  queryFn: async ({ signal }) => (await api<{ notas: NotaAdmin[] }>("/admin/notas", { signal })).notas,
+});
+
+export const consultaNegocioAdmin = queryOptions({
+  queryKey: [...claves.admin, "negocio"] as const,
+  queryFn: async ({ signal }) => (await api<{ negocio: NegocioAdmin }>("/admin/negocio", { signal })).negocio,
+});
+
+export const consultaReporte = (desde: string, hasta: string) =>
+  queryOptions({
+    queryKey: [...claves.reportes, desde, hasta] as const,
+    queryFn: ({ signal }) => api<Reporte>(`/admin/reportes?desde=${desde}&hasta=${hasta}`, { signal }),
+  });

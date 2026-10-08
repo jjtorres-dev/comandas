@@ -37,6 +37,10 @@
   --color-peligro: #b3261e;
   --color-peligro-suave: #fbe4e2;
 
+  /* Marcas de los gráficos de Ventas: el turquesa de la carta un paso más oscuro,
+     que pasa los controles de la guía de gráficos (contraste 3:1 sobre blanco) */
+  --color-dato: #0aa19c;
+
   /* Neutros teñidos del papel de la carta */
   --color-fondo: #eff5f6;
   --color-superficie: #ffffff;

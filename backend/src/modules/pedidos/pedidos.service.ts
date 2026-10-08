@@ -401,7 +401,7 @@ export async function actualizarCargos(sesion: Sesion, pedidoId: string, datos: 
     if (datos.cantidadTapers === null) {
       tapers = { tapersManual: false };
     } else if (datos.cantidadTapers !== undefined) {
-      const negocio = await tx.negocio.findUniqueOrThrow({ where: { id: sesion.negocioId } });
+      const negocio = await tx.negocio.findUniqueOrThrow({ where: { id: sesion.negocioId }, select: { precioTaper: true } });
       tapers = {
         tapersManual: true,
         cantidadTapers: datos.cantidadTapers,
@@ -548,24 +548,54 @@ export async function cancelarPedido(sesion: Sesion, pedidoId: string, motivo: s
   return publicar("pedido:actualizado", actualizado);
 }
 
-// Despacho: EN_CAMINO (solo delivery que ya está LISTO) o ENTREGADO (todo el pedido)
+// Despacho del pedido completo, y cómo deshacer el último paso:
+//   LISTO → EN_CAMINO (delivery)           EN_CAMINO → LISTO
+//   LISTO o EN_CAMINO → ENTREGADO          ENTREGADO → EN_CAMINO (delivery) o LISTO (el resto)
+// Una entrega solo se deshace si no se registró ningún pago desde entonces.
 export async function cambiarEstadoPedido(
   sesion: Sesion,
   pedidoId: string,
-  estado: typeof EstadoPedido.EN_CAMINO | typeof EstadoPedido.ENTREGADO,
+  estado: typeof EstadoPedido.EN_CAMINO | typeof EstadoPedido.ENTREGADO | typeof EstadoPedido.LISTO,
 ) {
   const actualizado = await prisma.$transaction(async (tx) => {
     const pedido = await bloquearPedido(tx, sesion.negocioId, pedidoId);
     exigirNoCancelado(pedido);
+    const esDelivery = pedido.tipo === TipoPedido.DELIVERY;
+    const entregado = pedido.estado === EstadoPedido.ENTREGADO;
+
+    // Deshacer una entrega: los platos vuelven a LISTO y el pedido al paso anterior
+    const deshacerEntrega = async (destino: EstadoPedido) => {
+      const desde = pedido.entregadoEn ?? pedido.creadoEn;
+      if ((await tx.pago.count({ where: { pedidoId, anuladoEn: null, creadoEn: { gte: desde } } })) > 0) {
+        throw conflicto("PEDIDO_CON_PAGOS", "Ya se cobró después de la entrega: no se puede deshacer");
+      }
+      await tx.pedidoItem.updateMany({
+        where: { pedidoId, estado: EstadoItem.ENTREGADO },
+        data: { estado: EstadoItem.LISTO },
+      });
+      await tx.pedido.update({ where: { id: pedidoId }, data: { estado: destino } });
+      await recalcular(tx, pedidoId);
+    };
 
     if (estado === EstadoPedido.EN_CAMINO) {
-      if (pedido.tipo !== TipoPedido.DELIVERY) {
-        throw conflicto("NO_ES_DELIVERY", "Solo los pedidos de delivery salen en camino");
+      if (!esDelivery) throw conflicto("NO_ES_DELIVERY", "Solo los pedidos de delivery salen en camino");
+      if (entregado) {
+        await deshacerEntrega(EstadoPedido.EN_CAMINO);
+      } else {
+        if (pedido.estado !== EstadoPedido.LISTO) {
+          throw conflicto("PEDIDO_NO_LISTO", "El pedido tiene que estar LISTO para salir en camino");
+        }
+        await tx.pedido.update({ where: { id: pedidoId }, data: { estado } });
       }
-      if (pedido.estado !== EstadoPedido.LISTO) {
-        throw conflicto("PEDIDO_NO_LISTO", "El pedido tiene que estar LISTO para salir en camino");
+    } else if (estado === EstadoPedido.LISTO) {
+      if (pedido.estado === EstadoPedido.EN_CAMINO) {
+        // El motorizado todavía no salió: el pedido vuelve a esperar en el local
+        await tx.pedido.update({ where: { id: pedidoId }, data: { estado } });
+      } else if (entregado && !esDelivery) {
+        await deshacerEntrega(EstadoPedido.LISTO);
+      } else {
+        throw conflicto("PEDIDO_NO_LISTO", "Solo se puede volver a LISTO un pedido en camino, o uno entregado que no es delivery");
       }
-      await tx.pedido.update({ where: { id: pedidoId }, data: { estado } });
     } else {
       if (pedido.estado !== EstadoPedido.LISTO && pedido.estado !== EstadoPedido.EN_CAMINO) {
         throw conflicto("PEDIDO_NO_LISTO", "Todavía hay items sin terminar: no se puede marcar como entregado");

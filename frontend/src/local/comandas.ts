@@ -1,16 +1,16 @@
 // Cómo se arma el panel de cocina a partir de los pedidos activos. Funciones
 // puras: reciben los pedidos del servidor y devuelven qué mostrar.
-import type { Area, EstadoItem, ItemPedido, Pedido } from "../lib/tipos";
+import type { Area, EstadoItem, ItemPedido, Pedido, UmbralesCocina } from "../lib/tipos";
 
-// Minutos a partir de los cuales una comanda "Tarda" y va "Muy tarde".
-// Hoy son fijos; están aquí para volverse configuración del negocio.
-export const UMBRALES = { tarda: 15, muyTarde: 25 };
+// Minutos a partir de los cuales una comanda "Tarda" y va "Muy tarde". Los
+// fija el dueño (llegan con la carta); estos valen mientras la carta carga.
+export const UMBRALES: UmbralesCocina = { tardaMin: 15, muyTardeMin: 25 };
 
 export type Tardanza = "a-tiempo" | "tarda" | "muy-tarde";
 
-export function tardanzaDe(desde: string, ahora: number): { minutos: number; nivel: Tardanza } {
+export function tardanzaDe(desde: string, ahora: number, umbrales: UmbralesCocina = UMBRALES): { minutos: number; nivel: Tardanza } {
   const minutos = Math.max(0, Math.floor((ahora - new Date(desde).getTime()) / 60_000));
-  return { minutos, nivel: minutos >= UMBRALES.muyTarde ? "muy-tarde" : minutos >= UMBRALES.tarda ? "tarda" : "a-tiempo" };
+  return { minutos, nivel: minutos >= umbrales.muyTardeMin ? "muy-tarde" : minutos >= umbrales.tardaMin ? "tarda" : "a-tiempo" };
 }
 
 const porHacer = (item: ItemPedido) => item.estado === "PENDIENTE" || item.estado === "PREPARANDO";

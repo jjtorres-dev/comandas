@@ -23,9 +23,20 @@ Cevichería Valentina (Tarapoto, Perú), son tres puestos:
 - **Cocina y caja** (rol `LOCAL`): en este local es una sola persona (la tía).
   Ve los pedidos que entran, marca su avance, cobra y lleva el turno de caja.
   Trabaja frente a un monitor de PC; si no hay PC disponible, en un celular.
-- **Dueño** (rol `ADMIN`): puede hacer todo lo anterior. Carta, precios, mesas,
-  usuarios y reportes son su responsabilidad, pero el backend todavía no tiene
-  endpoints para administrarlos.
+- **Dueño** (rol `ADMIN`): puede hacer todo lo anterior y además administra
+  desde `/admin`: ve las ventas y lleva la carta, los precios, el personal, las
+  mesas, los motorizados y los datos del negocio.
+
+El personal real de la Cevichería Valentina:
+
+- **Colver Falcón**: dueño y cocinero (roles `ADMIN` y `LOCAL`). Pasa el día
+  en la cocina; administra desde su celular o desde la PC.
+- **Diana Valdiviezo**: cocina y caja (rol `LOCAL`).
+- **Soger**: mozo (rol `MOZO`).
+- **José Falcón**: motorizado. No tiene usuario: solo recibe los pedidos por
+  WhatsApp.
+
+Sus usuarios los crea el dueño desde la administración; no van en el seed.
 
 Condiciones confirmadas de uso:
 
@@ -88,6 +99,8 @@ Lo que el backend ya ofrece (referencia: `docs/API.md`):
   items, ajustar cargos (envío, tapers, descuento) y asignar repartidor.
 - Cuenta, pagos (incluida cuenta dividida) y nota de venta.
 - Abrir, consultar y cerrar el turno de caja.
+- Administración (solo `ADMIN`): carta y precios, personal, mesas, motorizados,
+  notas rápidas, datos y logo del negocio, y reportes de ventas.
 
 Restricciones que el frontend debe respetar:
 
@@ -102,13 +115,22 @@ Restricciones que el frontend debe respetar:
 - Mensajes de error del servidor en español.
 - Código y comentarios en español.
 
+Decisiones tomadas por el dueño:
+
+- **No hay función de "agotado".** Cuando falta un plato, el personal avisa al
+  cliente; si ya se pidió, se cancela el plato pendiente. Revisar solo si el
+  dueño lo pide.
+
+- **Las ventas son lo cobrado.** Los reportes cuentan los pagos vigentes por el
+  día en que se cobraron; lo pedido y sin cobrar se muestra aparte.
+- **Lo que tiene historial no se borra.** Un plato vendido, una mesa usada o un
+  motorizado que ya repartió solo se desactivan.
+- **El logo vive en la base de datos**, no en disco: sobrevive a cada
+  despliegue. El dueño lo cambia desde `/admin`.
+
 Decisiones abiertas:
 
-- Administración de carta, precios, mesas y usuarios, y reportes: sin endpoints
-  todavía.
 - Impresión de comandas o notas de venta: no hay impresora por ahora.
-- Logo por negocio: `Negocio` guarda nombre pero no logo ni otros datos de
-  marca.
 
 ## Brand Commitments
 

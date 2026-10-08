@@ -33,7 +33,7 @@ export async function obtenerCarta(negocioId: string) {
     }),
     prisma.negocio.findUniqueOrThrow({
       where: { id: negocioId },
-      select: { costoEnvioDefault: true, precioTaper: true, distritos: true, region: true },
+      select: { costoEnvioDefault: true, precioTaper: true, distritos: true, region: true, umbralTardaMin: true, umbralMuyTardeMin: true },
     }),
   ]);
 
@@ -67,5 +67,7 @@ export async function obtenerCarta(negocioId: string) {
       distritos: negocio.distritos,
       region: negocio.region,
     },
+    // Panel de cocina: minutos a partir de los cuales una comanda tarda o va muy tarde
+    cocina: { tardaMin: negocio.umbralTardaMin, muyTardeMin: negocio.umbralMuyTardeMin },
   };
 }

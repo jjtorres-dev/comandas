@@ -145,8 +145,9 @@ export const esquemaCancelarPedido = z.object({
 
 export const esquemaRepartidor = z.object({ repartidorId: z.uuid().nullable() });
 
+// EN_CAMINO y ENTREGADO despachan; LISTO (y EN_CAMINO desde ENTREGADO) deshacen el paso anterior
 export const esquemaEstadoPedido = z.object({
-  estado: z.enum([EstadoPedido.EN_CAMINO, EstadoPedido.ENTREGADO]),
+  estado: z.enum([EstadoPedido.EN_CAMINO, EstadoPedido.ENTREGADO, EstadoPedido.LISTO]),
 });
 
 export const esquemaFiltroActivos = z.object({ areaId: z.uuid().optional() });

@@ -14,6 +14,7 @@ import {
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { BarraDeshacer } from "../../componentes/BarraDeshacer";
 import { ErrorDeCarga, Esqueleto } from "../../componentes/EstadoDeCarga";
 import { consultaCarta, consultaPedidosActivos } from "../../lib/consultas";
 import { haceCuanto, platosDeCombo, plural, useAhora } from "../../lib/formato";
@@ -36,6 +37,8 @@ export function Cocina() {
   const { areaId } = usePanel();
   const ahora = useAhora(15_000);
   const enLinea = useConexion() === "en-linea";
+  // Tras cada cambio, unos segundos para arrepentirse
+  const cambio = useDeshacer();
 
   const areas = useMemo(() => carta?.areas ?? [], [carta]);
   // Un filtro guardado de un área que ya no existe equivale a "Todas"
@@ -84,7 +87,7 @@ export function Cocina() {
             </ul>
           </nav>
         )}
-        <BarraDeshacer />
+        {cambio && <BarraDeshacer clave={cambio.id} texto={cambio.texto} alDeshacer={() => void deshacer()} alCerrar={cerrarDeshacer} />}
       </div>
 
       {!panel ? (
@@ -143,7 +146,8 @@ function TarjetaComanda({ comanda, ahora }: { comanda: Comanda; ahora: number })
   const { recienLlegados } = usePanel();
   const ocupado = useOcupado();
   const tipo = TIPOS[pedido.tipo];
-  const { minutos, nivel } = tardanzaDe(comanda.desde, ahora);
+  const { data: carta } = useQuery(consultaCarta);
+  const { minutos, nivel } = tardanzaDe(comanda.desde, ahora, carta?.cocina);
   const variosGrupos = bloques.reduce((suma, b) => suma + b.grupos.length, 0) > 1;
   const sinEmpezar = paraEmpezar(comanda.porHacer);
   const nombre = `Pedido ${pedido.numero}`;
@@ -459,37 +463,5 @@ function RecienListos({ listos, ahora }: { listos: Listo[]; ahora: number }) {
         )}
       </ul>
     </details>
-  );
-}
-
-// Tras cada cambio, unos segundos para arrepentirse con un botón grande
-function BarraDeshacer() {
-  const cambio = useDeshacer();
-  if (!cambio) return null;
-
-  return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] lg:static lg:z-auto lg:min-w-0 lg:flex-1 lg:justify-end lg:p-0">
-      <div
-        role="status"
-        className="pointer-events-auto flex w-full max-w-3xl flex-col overflow-hidden rounded-panel border-[3px] border-tinta bg-superficie shadow-barra lg:rounded-control lg:shadow-none"
-      >
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 p-3 lg:flex-nowrap lg:gap-4 lg:px-4 lg:py-1">
-          <p className="min-w-0 basis-full text-xl leading-tight font-bold text-tinta lg:flex-1 lg:basis-auto lg:text-2xl">{cambio.texto}</p>
-          <button type="button" onClick={() => void deshacer()} className={`${CONTORNO} min-h-16 flex-1 text-2xl lg:min-h-12 lg:flex-none lg:px-8`}>
-            <ArrowCounterClockwiseIcon aria-hidden="true" weight="bold" className="size-7 shrink-0" />
-            Deshacer
-          </button>
-          <button
-            type="button"
-            onClick={cerrarDeshacer}
-            className={`${BOTON} min-h-16 shrink-0 text-xl text-marino underline decoration-2 underline-offset-4 lg:min-h-12 lg:text-2xl`}
-          >
-            Cerrar
-          </button>
-        </div>
-        {/* La línea se acorta con el tiempo que queda. La clave la reinicia con cada cambio. */}
-        <div key={cambio.id} aria-hidden="true" className="h-1.5 origin-left animate-cuenta bg-primario-fuerte" />
-      </div>
-    </div>
   );
 }

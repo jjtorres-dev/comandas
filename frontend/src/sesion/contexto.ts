@@ -27,9 +27,12 @@ export function useSesion(): ContextoSesion {
   return contexto;
 }
 
-// A dónde entra cada rol: MOZO → /mozo; LOCAL y ADMIN → /local
-export function inicioDe(roles: Rol[]): "/mozo" | "/local" {
-  return roles.includes("LOCAL") || roles.includes("ADMIN") ? "/local" : "/mozo";
+// A dónde entra cada quien: quien trabaja en cocina y caja, a /local (aunque
+// también sea dueño: lo suyo en hora punta es la cocina); el dueño que no
+// cocina, a /admin; el mozo, a /mozo
+export function inicioDe(roles: Rol[]): "/mozo" | "/local" | "/admin" {
+  if (roles.includes("LOCAL")) return "/local";
+  return roles.includes("ADMIN") ? "/admin" : "/mozo";
 }
 
 const NOMBRES_DE_ROL: Record<Rol, string> = { ADMIN: "Dueño", MOZO: "Mozo", LOCAL: "Cocina y caja" };

@@ -125,6 +125,7 @@ export function crearPedido(
     idCliente?: string;
     cliente?: { telefono?: string; nombre?: string; direccion?: string; referencia?: string };
     costoEnvio?: number;
+    pagoPrevisto?: object;
     cantidadTapers?: number;
   },
 ) {

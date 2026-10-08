@@ -88,6 +88,19 @@ describe("Socket.IO", () => {
     expect(deB.eventos).toEqual([]);
   });
 
+  it("emite carta:actualizada al negocio cuando el dueño cambia un precio", async () => {
+    const deA = await escuchar(await tokenDe(a, "mozo"));
+    const deB = await escuchar(await tokenDe(b, "mozo"));
+
+    await request(servidor)
+      .patch(`/api/admin/variantes/${a.v.ceviche}/precio`)
+      .set(conToken(await tokenDe(a, "admin")))
+      .send({ precio: 22 });
+
+    await expect.poll(() => deA.eventos.map((e) => e.evento)).toEqual(["carta:actualizada"]);
+    expect(deB.eventos).toEqual([]);
+  });
+
   it("rechaza el handshake de un usuario desactivado", async () => {
     const token = await tokenDe(b, "mozo");
     await prisma.usuario.updateMany({ where: { negocioId: b.negocio.id, usuario: "mozo" }, data: { activo: false } });
