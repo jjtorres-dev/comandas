@@ -21,3 +21,6 @@ backend/src/generated/
 # Playwright
 test-results/
 playwright-report/
+
+# Respaldos de la base (npm run respaldo): tienen todos los datos del negocio
+respaldos/

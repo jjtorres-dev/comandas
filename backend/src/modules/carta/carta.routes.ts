@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { requireAuth } from "../../middlewares/auth";
-import * as controlador from "./carta.controller";
+import { requireAuth } from "../../middlewares/auth.js";
+import * as controlador from "./carta.controller.js";
 
 export const rutasCarta = Router();
 

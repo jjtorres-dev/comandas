@@ -1,7 +1,7 @@
 import request from "supertest";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { intentosDeLogin } from "../src/modules/auth/auth.routes";
-import { consultasDeNegocio } from "../src/modules/negocios/negocios.routes";
+import { consultasDeLogo, consultasDeNegocio } from "../src/modules/negocios/negocios.routes";
 import { app, CLAVE, conToken, crearNegocio, limpiarBase, prisma, tokenDe, type NegocioDePrueba } from "./helpers";
 
 const LOGO = "/api/negocios/negocio-a/logo?v=1";
@@ -15,6 +15,7 @@ beforeEach(async () => {
   await limpiarBase();
   intentosDeLogin.resetAll();
   consultasDeNegocio.resetAll();
+  consultasDeLogo.resetAll();
   a = await crearNegocio("Negocio A", "negocio-a", LOGO);
   b = await crearNegocio("Negocio B", "negocio-b");
 });

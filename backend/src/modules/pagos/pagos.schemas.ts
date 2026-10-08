@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MetodoPago, Prisma } from "../../generated/prisma/client";
+import { MetodoPago, Prisma } from "../../generated/prisma/client.js";
 
 // Monto mayor que cero, con 2 decimales como máximo
 const esquemaMontoPositivo = z

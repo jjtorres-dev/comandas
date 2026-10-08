@@ -1,11 +1,11 @@
 // Piezas compartidas por todo lo que modifica un pedido (pedidos, pagos):
 // cómo se carga, cómo se bloquea, cómo se recalcula y cómo viaja en el JSON.
 
-import { EstadoItem, EstadoPedido, Prisma, TipoPedido } from "../../generated/prisma/client";
-import { CERO, dinero, sumar } from "../../lib/dinero";
-import { conflicto, noEncontrado, sinPermiso } from "../../lib/errores";
-import type { Tx } from "../../lib/prisma";
-import { emitirANegocio } from "../../realtime/socket";
+import { EstadoItem, EstadoPedido, Prisma, TipoPedido } from "../../generated/prisma/client.js";
+import { CERO, dinero, sumar } from "../../lib/dinero.js";
+import { conflicto, noEncontrado, sinPermiso } from "../../lib/errores.js";
+import type { Tx } from "../../lib/prisma.js";
+import { emitirANegocio } from "../../realtime/socket.js";
 
 export const incluirCompleto = {
   mesa: { select: { id: true, nombre: true } },

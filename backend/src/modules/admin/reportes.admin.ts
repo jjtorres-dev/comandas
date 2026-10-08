@@ -1,11 +1,11 @@
 // Reportes del dueño. "Ventas" es lo cobrado en esos días (pagos vigentes por
 // su fecha de cobro); lo pedido y todavía sin cobrar va aparte, como "por cobrar".
-import { EstadoItem, EstadoPedido, MetodoPago, Prisma, TipoPedido } from "../../generated/prisma/client";
-import { CERO, dinero, sumar } from "../../lib/dinero";
-import { prisma } from "../../lib/prisma";
-import { diaYHora, inicioDeFecha } from "../../lib/tiempo";
-import { incluirTurno, resumir } from "../caja/caja.service";
-import type { Rango } from "./admin.schemas";
+import { EstadoItem, EstadoPedido, MetodoPago, Prisma, TipoPedido } from "../../generated/prisma/client.js";
+import { CERO, dinero, sumar } from "../../lib/dinero.js";
+import { prisma } from "../../lib/prisma.js";
+import { diaYHora, inicioDeFecha } from "../../lib/tiempo.js";
+import { incluirTurno, resumir } from "../caja/caja.service.js";
+import type { Rango } from "./admin.schemas.js";
 
 const UN_DIA = 86_400_000;
 const PLATOS_EN_LA_LISTA = 10;

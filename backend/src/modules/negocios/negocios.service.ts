@@ -1,5 +1,5 @@
-import { noEncontrado } from "../../lib/errores";
-import { prisma } from "../../lib/prisma";
+import { noEncontrado } from "../../lib/errores.js";
+import { prisma } from "../../lib/prisma.js";
 
 // Lo único que se puede ver de un negocio sin iniciar sesión: el login lo
 // muestra antes de pedir usuario y contraseña

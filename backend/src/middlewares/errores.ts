@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { ZodError } from "zod";
-import { ErrorApp } from "../lib/errores";
+import { ErrorApp } from "../lib/errores.js";
 
 export function rutaNoEncontrada(req: Request, res: Response) {
   res.status(404).json({
@@ -9,7 +9,7 @@ export function rutaNoEncontrada(req: Request, res: Response) {
 }
 
 // Único punto donde los errores se convierten en respuesta JSON
-export function manejarErrores(err: unknown, _req: Request, res: Response, _next: NextFunction) {
+export function manejarErrores(err: unknown, req: Request, res: Response, _next: NextFunction) {
   if (err instanceof ErrorApp) {
     res.status(err.status).json({ error: { codigo: err.codigo, mensaje: err.message, ...err.extra } });
     return;
@@ -37,6 +37,8 @@ export function manejarErrores(err: unknown, _req: Request, res: Response, _next
     return;
   }
 
-  console.error(err);
-  res.status(500).json({ error: { codigo: "ERROR_INTERNO", mensaje: "Error interno del servidor" } });
+  // El detalle (con su traza) va al registro; al cliente, solo un mensaje y el
+  // id de la petición para encontrarla en los logs
+  req.log.error({ err }, "Error no controlado");
+  res.status(500).json({ error: { codigo: "ERROR_INTERNO", mensaje: "Error interno del servidor", idPeticion: String(req.id) } });
 }

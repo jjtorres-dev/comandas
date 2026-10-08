@@ -16,6 +16,20 @@ está en `../CLAUDE.md`. Todos los comandos de este archivo se ejecutan desde
 ## Comandos
 
 - `npm run dev`: servidor con recarga (`tsx watch src/server.ts`), puerto `PORT` (3000)
+- `npm run build`: `prisma generate` y `tsc -p tsconfig.build.json`; deja el
+  servidor en `dist/` como ESM de Node. `npm start` revisa las variables, corre
+  `prisma migrate deploy` y arranca `node dist/server.js` (sin tsx)
+- `npm run test:utc`: las mismas pruebas con `TZ=UTC`, como corre el servidor de
+  Railway. Tienen que pasar igual que `npm test`
+- `npm run seed:produccion`: seed de producción (`dist/seed/sembrar.js`, hay que
+  compilar antes). Nunca borra: crea solo lo que falta de la Cevichería
+  Valentina, y un único usuario `ADMIN` + `LOCAL` con `ADMIN_INICIAL_NOMBRE`,
+  `ADMIN_INICIAL_USUARIO` y `ADMIN_INICIAL_PASSWORD` si el negocio no tiene
+  ninguno
+- `npm run respaldo` y `npm run restaurar -- <archivo>`: `pg_dump` y
+  `pg_restore` de `DATABASE_URL` (`scripts/*.mjs`), con la herramienta de la
+  misma versión que el servidor (instalada, o desde su imagen con Podman o
+  Docker). Los archivos quedan en `respaldos/`, ignorada por git
 - `npm test`: pruebas contra la base `comandas_test` (se crea y migra sola en el
   mismo contenedor; cada prueba vacía sus tablas)
 - `npm run db:up`: levanta Postgres y Adminer (usa `../docker-compose.yml`)
@@ -49,6 +63,41 @@ está en `../CLAUDE.md`. Todos los comandos de este archivo se ejecutan desde
   `npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code`
   y regenerar el cliente con `npx prisma generate`.
 
+## Producción
+
+Los pasos para Railway están en `../docs/DESPLIEGUE.md`.
+
+- **Un solo servicio**: el `Dockerfile` de la raíz compila frontend y backend, y
+  con `NODE_ENV=production` el backend sirve `frontend/dist` (`src/frontend.ts`):
+  lo de `assets/` con caché para siempre, el resto sin caché, y cualquier ruta
+  de la aplicación responde `index.html`. Mismo origen para la API y Socket.IO:
+  en producción no se monta CORS.
+- **Imports con `.js`**: el código se compila con `tsc` a ESM de Node, así que
+  todo import relativo de `src/` lleva la extensión `.js` (también el cliente de
+  Prisma, por `importFileExtension = "js"` en el schema). Un import sin
+  extensión funciona con tsx y vitest pero rompe `npm run build`.
+- **Variables** (`src/config/env.ts`): se validan con zod al arrancar. En
+  producción `DATABASE_URL`, `JWT_SECRET` (32 caracteres o más, y no el de
+  ejemplo), `NODE_ENV`, `PORT` y `TRUST_PROXY` tienen que venir todas; si falta
+  una, el proceso lo dice en una lista y sale sin traza.
+- **Zona horaria**: el servidor corre en UTC y el negocio vive en
+  `America/Lima`. Nada usa la hora local del proceso: el correlativo diario, el
+  tablero del día, los reportes y la nota de venta pasan por `src/lib/tiempo.ts`.
+  No usar `getHours()`, `setHours()` ni `toLocale…` sin zona.
+- **Seguridad**: helmet con una CSP de solo el propio origen (más estilos en
+  línea, que necesitan motion y sonner, e imágenes `https:` por si un logo es
+  una URL absoluta). Cuerpos JSON de 100 kB como máximo. Los errores
+  inesperados responden `ERROR_INTERNO` con `idPeticion`, nunca la traza.
+- **Registros**: pino (`src/lib/registro.ts`), JSON por línea, con el id de
+  cada petición (`req.log` dentro de una ruta, `registro` fuera). No registrar
+  cuerpos ni cabeceras: llevan contraseñas, tokens y datos de clientes. La URL
+  se registra sin la consulta (`?telefono=`).
+- **Seeds**: los datos de Valentina están en `src/seed/valentina.ts`. El de
+  desarrollo (`prisma/seed.ts`) borra y recrea, y aborta en producción; el de
+  producción (`src/seed/produccion.ts`) solo agrega lo que falta.
+- `GET /api/salud` hace un `SELECT 1`: es el chequeo de salud de Railway
+  (`railway.json`).
+
 ## Backend
 
 - `src/server.ts` (HTTP + Socket.IO) y `src/app.ts` (Express, sin escuchar: es lo que
@@ -67,7 +116,7 @@ está en `../CLAUDE.md`. Todos los comandos de este archivo se ejecutan desde
   `select` u `omit: { logo: true }` para no traer la imagen. El login,
   `GET /api/auth/yo` y `GET /api/negocios/:codigo/publico` (público, 30
   consultas por minuto por IP, solo `{nombre, logoUrl}`) devuelven el nombre y
-  el logo.
+  el logo. La imagen tiene su propio límite: 60 por minuto por IP.
 - Administración (`src/modules/admin/`, todo bajo `/api/admin` y solo `ADMIN`):
   un controlador y un archivo de reglas por tema (`carta.admin.ts`,
   `personal.admin.ts`, `local.admin.ts`, `negocio.admin.ts`,
@@ -79,8 +128,8 @@ está en `../CLAUDE.md`. Todos los comandos de este archivo se ejecutan desde
   inactivos, o sus roles ya no son los del token, responde 401.
 - Roles: MOZO, LOCAL y ADMIN operan pedidos; caja, cobros y cargos son solo de
   LOCAL y ADMIN.
-- CORS: `FRONTEND_URL` y, solo con `NODE_ENV=development`, orígenes `192.168.x.x`
-  (`src/config/cors.ts`, compartido con Socket.IO).
+- CORS: solo fuera de producción. `FRONTEND_URL` y, con `NODE_ENV=development`,
+  orígenes `192.168.x.x` (`src/config/cors.ts`, compartido con Socket.IO).
 - `TRUST_PROXY` configura "trust proxy" de Express: vacío en desarrollo, `1` en
   Railway. Sin él, el límite de login vería a todos con la IP del proxy.
 - `docs/API.md` documenta todos los endpoints y eventos; es la referencia para el

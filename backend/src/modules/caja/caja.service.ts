@@ -1,11 +1,11 @@
-import { EstadoPedido, MetodoPago, Prisma } from "../../generated/prisma/client";
-import { CERO, dinero, sumar } from "../../lib/dinero";
-import { conflicto } from "../../lib/errores";
-import { prisma, type Tx } from "../../lib/prisma";
-import type { Sesion } from "../../middlewares/auth";
-import { emitirANegocio } from "../../realtime/socket";
-import { bloquearNegocio } from "../pedidos/pedidos.core";
-import type { DatosAbrirCaja, DatosCerrarCaja } from "./caja.schemas";
+import { EstadoPedido, MetodoPago, Prisma } from "../../generated/prisma/client.js";
+import { CERO, dinero, sumar } from "../../lib/dinero.js";
+import { conflicto } from "../../lib/errores.js";
+import { prisma, type Tx } from "../../lib/prisma.js";
+import type { Sesion } from "../../middlewares/auth.js";
+import { emitirANegocio } from "../../realtime/socket.js";
+import { bloquearNegocio } from "../pedidos/pedidos.core.js";
+import type { DatosAbrirCaja, DatosCerrarCaja } from "./caja.schemas.js";
 
 export const incluirTurno = {
   abiertoPor: { select: { id: true, nombre: true } },

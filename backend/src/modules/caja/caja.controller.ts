@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
-import { sesionDe } from "../../middlewares/auth";
-import { esquemaAbrirCaja, esquemaCerrarCaja } from "./caja.schemas";
-import * as servicio from "./caja.service";
+import { sesionDe } from "../../middlewares/auth.js";
+import { esquemaAbrirCaja, esquemaCerrarCaja } from "./caja.schemas.js";
+import * as servicio from "./caja.service.js";
 
 export async function abrir(req: Request, res: Response) {
   res.status(201).json({ turno: await servicio.abrirCaja(sesionDe(req), esquemaAbrirCaja.parse(req.body)) });

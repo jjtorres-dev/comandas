@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { MemoryStore, rateLimit } from "express-rate-limit";
-import { ErrorApp } from "../../lib/errores";
-import { requireAuth } from "../../middlewares/auth";
-import * as controlador from "./auth.controller";
+import { ErrorApp } from "../../lib/errores.js";
+import { requireAuth } from "../../middlewares/auth.js";
+import * as controlador from "./auth.controller.js";
 
 export const rutasAuth = Router();
 

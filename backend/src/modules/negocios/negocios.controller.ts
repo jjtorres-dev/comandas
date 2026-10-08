@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
-import { esquemaCodigoNegocio } from "./negocios.schemas";
-import * as servicio from "./negocios.service";
+import { esquemaCodigoNegocio } from "./negocios.schemas.js";
+import * as servicio from "./negocios.service.js";
 
 export async function publico(req: Request, res: Response) {
   const { codigo } = esquemaCodigoNegocio.parse(req.params);

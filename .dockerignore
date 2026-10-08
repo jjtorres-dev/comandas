@@ -1,0 +1,36 @@
+# Lo que la imagen no necesita o no debe llevar. Todo se compila dentro.
+.git
+.gitignore
+**/node_modules
+**/dist
+**/dev-dist
+
+# Secretos y datos: nunca dentro de una imagen
+**/.env
+**/.env.*
+!**/.env.example
+**/respaldos
+*.dump
+
+# Pruebas, documentación y herramientas de desarrollo
+frontend/e2e
+frontend/test-results
+frontend/playwright-report
+frontend/playwright.config.ts
+backend/tests
+backend/docs
+backend/scripts
+backend/vitest.config.ts
+backend/src/generated
+docs
+*.md
+docker-compose.yml
+.claude
+.agents
+.impeccable
+skills-lock.json
+**/*.log
+
+# De design-ref solo se usa el logo (lo carga el seed de producción)
+design-ref/*
+!design-ref/logo.png

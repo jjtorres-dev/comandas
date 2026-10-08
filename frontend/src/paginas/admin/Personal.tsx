@@ -4,13 +4,13 @@ import { useId, useState } from "react";
 import { useGuardar } from "../../admin/guardar";
 import { Boton } from "../../componentes/Boton";
 import { Campo } from "../../componentes/Campo";
-import { Dialogo } from "../../componentes/Dialogo";
 import { ErrorDeCarga, Esqueleto } from "../../componentes/EstadoDeCarga";
 import { Interruptor } from "../../componentes/Interruptor";
 import { api } from "../../lib/api";
 import { consultaUsuarios } from "../../lib/consultas";
 import type { Rol, UsuarioAdmin } from "../../lib/tipos";
 import { nombreDeRoles, useSesion } from "../../sesion/contexto";
+import { Ficha as Dialogo } from "./Ficha";
 import { Desactivado, Titulo } from "./piezas";
 
 const PUESTOS: { rol: Rol; nombre: string; texto: string }[] = [
@@ -115,7 +115,13 @@ function FichaPersona({ persona, esYo, alCerrar }: { persona: UsuarioAdmin | nul
 
   return (
     <Dialogo
-      abierto
+      sinGuardar={
+        nombre !== (persona?.nombre ?? "") ||
+        usuario !== (persona?.usuario ?? "") ||
+        roles.join() !== (persona?.roles ?? ["MOZO"]).join() ||
+        activo !== (persona?.activo ?? true) ||
+        password !== ""
+      }
       alCerrar={alCerrar}
       titulo={persona ? `Editar a ${persona.nombre}` : "Nueva persona"}
       pie={

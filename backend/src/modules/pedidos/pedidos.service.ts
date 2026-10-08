@@ -1,9 +1,9 @@
-import { EstadoItem, EstadoPedido, MetodoPago, MomentoPago, Prisma, Rol, TipoPedido } from "../../generated/prisma/client";
-import { CERO } from "../../lib/dinero";
-import { conflicto, noEncontrado, sinPermiso, solicitudInvalida } from "../../lib/errores";
-import { prisma, type Tx } from "../../lib/prisma";
-import { inicioDelDia } from "../../lib/tiempo";
-import type { Sesion } from "../../middlewares/auth";
+import { EstadoItem, EstadoPedido, MetodoPago, MomentoPago, Prisma, Rol, TipoPedido } from "../../generated/prisma/client.js";
+import { CERO } from "../../lib/dinero.js";
+import { conflicto, noEncontrado, sinPermiso, solicitudInvalida } from "../../lib/errores.js";
+import { prisma, type Tx } from "../../lib/prisma.js";
+import { inicioDelDia } from "../../lib/tiempo.js";
+import type { Sesion } from "../../middlewares/auth.js";
 import {
   bloquearNegocio,
   bloquearPedido,
@@ -15,7 +15,7 @@ import {
   recalcularTapers,
   serializar,
   type PedidoSerializado,
-} from "./pedidos.core";
+} from "./pedidos.core.js";
 import type {
   DatosAgregarItems,
   DatosCambiarEstado,
@@ -24,7 +24,7 @@ import type {
   ItemEntrada,
   DatosEntrega,
   DatosPagoPrevisto,
-} from "./pedidos.schemas";
+} from "./pedidos.schemas.js";
 
 const VARIANTE_UNICA = "Única";
 

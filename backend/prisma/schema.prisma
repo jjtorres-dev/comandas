@@ -7,6 +7,8 @@
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
+  // El backend se compila con tsc a ESM de Node: los imports llevan ".js"
+  importFileExtension = "js"
 }
 
 // La URL de conexión vive en prisma.config.ts (Prisma 7)

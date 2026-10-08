@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { EstadoItem, EstadoPedido, MetodoPago, MomentoPago, Prisma, TipoPedido } from "../../generated/prisma/client";
-import { esquemaMonto } from "../../lib/dinero";
-import { esquemaTelefono } from "../../lib/telefono";
+import { EstadoItem, EstadoPedido, MetodoPago, MomentoPago, Prisma, TipoPedido } from "../../generated/prisma/client.js";
+import { esquemaMonto } from "../../lib/dinero.js";
+import { esquemaTelefono } from "../../lib/telefono.js";
 
 export const COSTO_ENVIO_MAXIMO = 20;
 

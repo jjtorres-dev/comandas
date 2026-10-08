@@ -1,5 +1,5 @@
-import { dinero } from "../../lib/dinero";
-import { prisma } from "../../lib/prisma";
+import { dinero } from "../../lib/dinero.js";
+import { prisma } from "../../lib/prisma.js";
 
 // Carta completa para tomar pedidos: solo lo activo, en el orden configurado
 export async function obtenerCarta(negocioId: string) {

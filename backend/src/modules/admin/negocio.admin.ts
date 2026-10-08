@@ -1,9 +1,9 @@
 // Datos del negocio: nombre, logo, reparto y umbrales de cocina
-import { dinero } from "../../lib/dinero";
-import { solicitudInvalida } from "../../lib/errores";
-import { prisma } from "../../lib/prisma";
-import type { DatosNegocio } from "./admin.schemas";
-import { avisarCambio } from "./comun";
+import { dinero } from "../../lib/dinero.js";
+import { solicitudInvalida } from "../../lib/errores.js";
+import { prisma } from "../../lib/prisma.js";
+import type { DatosNegocio } from "./admin.schemas.js";
+import { avisarCambio } from "./comun.js";
 
 const campos = {
   id: true,

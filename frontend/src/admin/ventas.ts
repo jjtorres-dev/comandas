@@ -66,7 +66,9 @@ export const porTipo = ({ ventas }: Reporte) =>
 export const platosMasPedidos = ({ platos }: Reporte) =>
   platos.map((p) => ({ clave: p.nombre, nombre: p.nombre, valor: p.cantidad, texto: String(p.cantidad), detalle: soles(p.total) }));
 
-export const minutosEnPalabras = (minutos: number | null): string => (minutos === null ? "Sin datos" : `${Math.round(minutos)} min`);
+// Un promedio de segundos no es "0 min": se dice "menos de 1 min"
+export const minutosEnPalabras = (minutos: number | null): string =>
+  minutos === null ? "Sin datos" : minutos < 1 ? "menos de 1 min" : `${Math.round(minutos)} min`;
 
 // Cómo cerró un turno: cuadró, faltó o sobró
 export function cierreDe(turno: Turno): { estado: "abierto" | "cuadro" | "falto" | "sobro"; texto: string } {

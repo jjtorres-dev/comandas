@@ -24,6 +24,16 @@ Referencia de todos los endpoints HTTP y eventos de Socket.IO del backend.
 | Campos desconocidos | Se ignoran (por ejemplo, un `precio` enviado por el cliente) |
 | Archivos | El logo de cada negocio se guarda en la base y se sirve sin autenticación en `GET /api/negocios/:codigo/logo` (ver [Negocios](#negocios)). El servidor no sirve archivos de disco |
 
+**Producción.** El mismo servidor entrega la aplicación web, así que la API y
+Socket.IO están en su mismo origen (`/api` y `/socket.io`) y no hay CORS. En
+desarrollo se acepta el origen de `FRONTEND_URL` y las IPs `192.168.x.x`.
+
+**Cabeceras.** Toda respuesta trae `X-Request-Id` (el id con el que esa petición
+aparece en los registros del servidor; si la petición ya trae uno, se respeta) y
+las cabeceras de seguridad de helmet, con una Content-Security-Policy que solo
+permite recursos del propio origen. Las respuestas de `/api` llevan
+`Cache-Control: no-store`, salvo el logo.
+
 **Roles**: `ADMIN` (dueño), `MOZO` (toma pedidos), `LOCAL` (cocina y caja). Donde
 dice "cualquiera" basta con estar autenticado.
 
@@ -55,9 +65,10 @@ endpoint. Estos pueden salir en cualquiera:
 | 403 | `SIN_PERMISO` | El rol no alcanza para esa acción |
 | 404 | `NO_ENCONTRADO` | El recurso no existe **o es de otro negocio**, o la ruta no existe |
 | 409 | varios | Conflicto con el estado actual; ver cada endpoint |
-| 413 | `CUERPO_MUY_GRANDE` | Cuerpo de más de 100 kB |
+| 413 | `CUERPO_MUY_GRANDE` | Cuerpo de más de 100 kB (1 MB al subir el logo) |
 | 429 | `DEMASIADOS_INTENTOS` | Límite de intentos de login o de consultas públicas de negocio |
-| 500 | `ERROR_INTERNO` | Error inesperado |
+| 500 | `ERROR_INTERNO` | Error inesperado. Trae `idPeticion` (el mismo `X-Request-Id`) para encontrar el detalle en los registros del servidor; la respuesta nunca incluye la traza |
+| 503 | `BASE_NO_DISPONIBLE` | Solo en `GET /salud`: el servidor no llega a la base de datos |
 
 ## Objetos
 
@@ -250,7 +261,12 @@ logo del negocio.
 
 ### `GET /api/salud`
 
-Sin autenticación. **200** `{ "ok": true }`.
+Sin autenticación. Comprueba que el servidor responde **y que llega a la base
+de datos**. Es la ruta que consulta Railway para saber si el servicio está sano.
+
+- **200** `{ "ok": true }`
+- **503** `{ "ok": false, "error": { "codigo": "BASE_NO_DISPONIBLE", "mensaje": "…" } }`
+  si la base no responde.
 
 ---
 
@@ -280,8 +296,10 @@ nombre.
 
 ### `GET /api/negocios/:codigo/logo`
 
-Sin autenticación y sin límite de consultas. Responde la imagen del logo con su
-`Content-Type` (`image/png`, `image/jpeg` o `image/webp`) y un día de caché.
+Sin autenticación. Responde la imagen del logo con su `Content-Type`
+(`image/png`, `image/jpeg` o `image/webp`) y un día de caché. Máximo **60
+consultas por minuto por IP** (429 `DEMASIADOS_INTENTOS`); con la caché, un
+equipo lo pide muy pocas veces.
 **404** `NO_ENCONTRADO` si el negocio no existe, está inactivo o no tiene logo.
 
 ### Logo (`logoUrl`)

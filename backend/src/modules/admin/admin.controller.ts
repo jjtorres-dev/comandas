@@ -1,12 +1,12 @@
 import type { Request, Response } from "express";
-import { solicitudInvalida } from "../../lib/errores";
-import { sesionDe } from "../../middlewares/auth";
-import * as e from "./admin.schemas";
-import * as carta from "./carta.admin";
-import * as local from "./local.admin";
-import * as negocio from "./negocio.admin";
-import * as personal from "./personal.admin";
-import * as reportes from "./reportes.admin";
+import { solicitudInvalida } from "../../lib/errores.js";
+import { sesionDe } from "../../middlewares/auth.js";
+import * as e from "./admin.schemas.js";
+import * as carta from "./carta.admin.js";
+import * as local from "./local.admin.js";
+import * as negocio from "./negocio.admin.js";
+import * as personal from "./personal.admin.js";
+import * as reportes from "./reportes.admin.js";
 
 const negocioDe = (req: Request) => sesionDe(req).negocioId;
 const idDe = (req: Request) => e.esquemaId.parse(req.params).id;

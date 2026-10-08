@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router";
 import { Toaster } from "sonner";
 import { App } from "./App";
+import { AvisoVersion } from "./componentes/AvisoVersion";
 import "./estilos.css";
 import { clienteDeConsultas } from "./lib/consultas";
 import { ProveedorSesion } from "./sesion/ProveedorSesion";
@@ -18,6 +19,7 @@ createRoot(document.getElementById("root")!).render(
           <ProveedorSesion>
             <App />
           </ProveedorSesion>
+          <AvisoVersion />
         </BrowserRouter>
         <Toaster
           // Abajo, justo encima de la navegación o de la barra del pedido: no

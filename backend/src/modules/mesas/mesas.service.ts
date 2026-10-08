@@ -1,6 +1,6 @@
-import { EstadoPedido } from "../../generated/prisma/client";
-import { dinero } from "../../lib/dinero";
-import { prisma } from "../../lib/prisma";
+import { EstadoPedido } from "../../generated/prisma/client.js";
+import { dinero } from "../../lib/dinero.js";
+import { prisma } from "../../lib/prisma.js";
 
 // Una mesa está ocupada si tiene un pedido no pagado y no cancelado. No cuenta
 // el que volvió a quedar por cobrar (pago anulado) con la mesa ya ocupada por otro.

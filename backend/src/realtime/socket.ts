@@ -1,7 +1,8 @@
 import type { Server as ServidorHttp } from "node:http";
 import { Server } from "socket.io";
-import { opcionesCors } from "../config/cors";
-import { validarSesion, type Sesion } from "../middlewares/auth";
+import { opcionesCors } from "../config/cors.js";
+import { env } from "../config/env.js";
+import { validarSesion, type Sesion } from "../middlewares/auth.js";
 
 let io: Server | null = null;
 
@@ -10,7 +11,8 @@ const sala = (negocioId: string) => `negocio:${negocioId}`;
 // Monta Socket.IO sobre el servidor HTTP. El JWT va en el handshake:
 // io(url, { auth: { token } })
 export function iniciarSocket(servidor: ServidorHttp): Server {
-  io = new Server(servidor, { cors: opcionesCors });
+  // En producción el frontend sale de este mismo origen: sin CORS
+  io = new Server(servidor, env.NODE_ENV === "production" ? {} : { cors: opcionesCors });
 
   io.use(async (socket, next) => {
     try {

@@ -1,10 +1,10 @@
 import type { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
-import { env } from "../config/env";
-import { Rol } from "../generated/prisma/client";
-import { noAutenticado, sinPermiso } from "../lib/errores";
-import { prisma } from "../lib/prisma";
+import { env } from "../config/env.js";
+import { Rol } from "../generated/prisma/client.js";
+import { noAutenticado, sinPermiso } from "../lib/errores.js";
+import { prisma } from "../lib/prisma.js";
 
 // Contenido del JWT. REGLA DE ORO: el negocioId siempre sale de aquí,
 // nunca del body ni de la URL.

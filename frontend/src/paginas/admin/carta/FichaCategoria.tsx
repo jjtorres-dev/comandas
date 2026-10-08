@@ -4,10 +4,10 @@ import { useGuardar } from "../../../admin/guardar";
 import { Boton } from "../../../componentes/Boton";
 import { BotonConfirmar } from "../../../componentes/BotonConfirmar";
 import { Campo } from "../../../componentes/Campo";
-import { Dialogo } from "../../../componentes/Dialogo";
 import { Interruptor } from "../../../componentes/Interruptor";
 import { api } from "../../../lib/api";
 import type { CategoriaAdmin } from "../../../lib/tipos";
+import { Ficha } from "../Ficha";
 import { NotaDeHistorial } from "../piezas";
 
 // Crear una categoría (categoria = null) o cambiarle el nombre, apagarla o eliminarla
@@ -25,8 +25,8 @@ export function FichaCategoria({ categoria, alCerrar }: { categoria: CategoriaAd
   };
 
   return (
-    <Dialogo
-      abierto
+    <Ficha
+      sinGuardar={nombre !== (categoria?.nombre ?? "") || activo !== (categoria?.activo ?? true)}
       alCerrar={alCerrar}
       titulo={categoria ? "Editar categoría" : "Nueva categoría"}
       pie={
@@ -61,6 +61,6 @@ export function FichaCategoria({ categoria, alCerrar }: { categoria: CategoriaAd
           </>
         )}
       </form>
-    </Dialogo>
+    </Ficha>
   );
 }

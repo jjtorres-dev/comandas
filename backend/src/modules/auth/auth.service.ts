@@ -1,8 +1,8 @@
 import bcrypt from "bcrypt";
-import { noAutenticado } from "../../lib/errores";
-import { prisma } from "../../lib/prisma";
-import { firmarToken, type Sesion } from "../../middlewares/auth";
-import type { DatosLogin } from "./auth.schemas";
+import { noAutenticado } from "../../lib/errores.js";
+import { prisma } from "../../lib/prisma.js";
+import { firmarToken, type Sesion } from "../../middlewares/auth.js";
+import type { DatosLogin } from "./auth.schemas.js";
 
 // Hash de relleno: si el usuario no existe igual se compara contra algo,
 // para que el tiempo de respuesta no revele qué usuarios existen

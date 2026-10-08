@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { EstadoItem, MetodoPago, Prisma, TipoPedido } from "../../generated/prisma/client";
-import { CERO, dinero, sumar } from "../../lib/dinero";
-import { conflicto, noEncontrado, solicitudInvalida } from "../../lib/errores";
-import { prisma, type Tx } from "../../lib/prisma";
-import { enlaceWhatsapp } from "../../lib/telefono";
-import { fechaHoraLocal } from "../../lib/tiempo";
-import type { Sesion } from "../../middlewares/auth";
-import { bloquearTurnoAbierto, publicarCaja, serializarPago } from "../caja/caja.service";
+import { EstadoItem, MetodoPago, Prisma, TipoPedido } from "../../generated/prisma/client.js";
+import { CERO, dinero, sumar } from "../../lib/dinero.js";
+import { conflicto, noEncontrado, solicitudInvalida } from "../../lib/errores.js";
+import { prisma, type Tx } from "../../lib/prisma.js";
+import { enlaceWhatsapp } from "../../lib/telefono.js";
+import { fechaHoraLocal } from "../../lib/tiempo.js";
+import type { Sesion } from "../../middlewares/auth.js";
+import { bloquearTurnoAbierto, publicarCaja, serializarPago } from "../caja/caja.service.js";
 import {
   bloquearPedido,
   exigirNoCancelado,
@@ -15,8 +15,8 @@ import {
   publicar,
   recalcular,
   serializar,
-} from "../pedidos/pedidos.core";
-import type { DatosAnularPago, DatosCambiarMetodo, DatosRegistrarPagos } from "./pagos.schemas";
+} from "../pedidos/pedidos.core.js";
+import type { DatosAnularPago, DatosCambiarMetodo, DatosRegistrarPagos } from "./pagos.schemas.js";
 
 const NOMBRE_METODO: Record<MetodoPago, string> = {
   EFECTIVO: "Efectivo",

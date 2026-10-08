@@ -5,10 +5,10 @@ import { cuerpoDe, type Ficha, fichaDe, loQueFalta, varianteNueva } from "../../
 import { Boton } from "../../../componentes/Boton";
 import { BotonConfirmar } from "../../../componentes/BotonConfirmar";
 import { Campo } from "../../../componentes/Campo";
-import { Dialogo } from "../../../componentes/Dialogo";
 import { Interruptor } from "../../../componentes/Interruptor";
 import { api } from "../../../lib/api";
 import type { Area, CategoriaAdmin, ProductoAdmin } from "../../../lib/tipos";
+import { Ficha as Dialogo } from "../Ficha";
 import { BotonIcono, NotaDeHistorial, Orden } from "../piezas";
 
 type Props = {
@@ -24,7 +24,9 @@ const etiqueta = "text-lg font-bold text-marino";
 const campo = "h-14 w-full rounded-control border-2 border-borde-fuerte bg-superficie px-4 text-xl text-tinta focus:border-marino";
 
 export function FichaProducto({ producto, categoriaId, categorias, areas, alCerrar }: Props) {
-  const [ficha, setFicha] = useState<Ficha>(() => fichaDe(producto, categoriaId, areas[0]?.id ?? ""));
+  // Como se abrió: con qué comparar para saber si hay algo sin guardar
+  const [inicial] = useState<Ficha>(() => fichaDe(producto, categoriaId, areas[0]?.id ?? ""));
+  const [ficha, setFicha] = useState(inicial);
   const { guardar, ocupado } = useGuardar();
   const id = useId();
   const cambiar = (cambios: Partial<Ficha>) => setFicha((actual) => ({ ...actual, ...cambios }));
@@ -49,7 +51,7 @@ export function FichaProducto({ producto, categoriaId, categorias, areas, alCerr
 
   return (
     <Dialogo
-      abierto
+      sinGuardar={JSON.stringify(ficha) !== JSON.stringify(inicial)}
       alCerrar={alCerrar}
       titulo={producto ? "Editar plato" : "Nuevo plato"}
       pie={

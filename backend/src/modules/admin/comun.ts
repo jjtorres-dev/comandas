@@ -1,4 +1,4 @@
-import { emitirANegocio } from "../../realtime/socket";
+import { emitirANegocio } from "../../realtime/socket.js";
 
 // Avisa a todos los equipos del negocio que la carta o los datos del local
 // cambiaron: los celulares de los mozos y /local vuelven a pedirlos

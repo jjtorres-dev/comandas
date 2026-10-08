@@ -1,0 +1,14 @@
+{
+  // Compilación de producción: `npm run build` deja el servidor en dist/ como
+  // ESM de Node (sin tsx). Las pruebas y los scripts no se compilan.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "noEmit": false,
+    "rootDir": "src",
+    "outDir": "dist",
+    "sourceMap": true
+  },
+  "include": ["src"]
+}

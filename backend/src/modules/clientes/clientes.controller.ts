@@ -1,8 +1,8 @@
 import type { Request, Response } from "express";
-import { sesionDe } from "../../middlewares/auth";
-import { esquemaBuscarCliente } from "./clientes.schemas";
-import { ultimoPedidoDe } from "../pedidos/pedidos.service";
-import * as servicio from "./clientes.service";
+import { sesionDe } from "../../middlewares/auth.js";
+import { esquemaBuscarCliente } from "./clientes.schemas.js";
+import { ultimoPedidoDe } from "../pedidos/pedidos.service.js";
+import * as servicio from "./clientes.service.js";
 
 export async function buscar(req: Request, res: Response) {
   const { telefono } = esquemaBuscarCliente.parse(req.query);

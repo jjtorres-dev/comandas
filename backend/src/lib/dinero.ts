@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Prisma } from "../generated/prisma/client";
+import { Prisma } from "../generated/prisma/client.js";
 
 export const CERO = new Prisma.Decimal(0);
 

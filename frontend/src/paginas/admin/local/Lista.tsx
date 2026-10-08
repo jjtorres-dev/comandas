@@ -4,11 +4,11 @@ import { useGuardar } from "../../../admin/guardar";
 import { Boton } from "../../../componentes/Boton";
 import { BotonConfirmar } from "../../../componentes/BotonConfirmar";
 import { Campo } from "../../../componentes/Campo";
-import { Dialogo } from "../../../componentes/Dialogo";
 import { Esqueleto } from "../../../componentes/EstadoDeCarga";
 import { Interruptor } from "../../../componentes/Interruptor";
 import { api } from "../../../lib/api";
 import type { ElementoAdmin } from "../../../lib/tipos";
+import { Ficha as Dialogo } from "../Ficha";
 import { BotonIcono, Desactivado, NotaDeHistorial, Orden, Tarjeta } from "../piezas";
 
 // Mesas, motorizados y notas rápidas son la misma lista con distintas palabras
@@ -106,7 +106,7 @@ function FichaElemento({ textos, elemento, alCerrar }: { textos: Textos; element
 
   return (
     <Dialogo
-      abierto
+      sinGuardar={nombre !== (elemento?.[textos.campo] ?? "") || telefono !== (elemento?.telefono ?? "") || activo !== (elemento?.activo ?? true)}
       alCerrar={alCerrar}
       titulo={elemento ? textos.editar : textos.nuevo}
       pie={

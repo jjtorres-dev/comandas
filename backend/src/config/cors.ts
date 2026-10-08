@@ -1,5 +1,5 @@
 import type { CorsOptions } from "cors";
-import { env } from "./env";
+import { env } from "./env.js";
 
 // http(s)://192.168.x.x[:puerto]: el celular en la misma red wifi
 const RED_LOCAL = /^https?:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/;

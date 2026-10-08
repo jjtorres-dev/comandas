@@ -1,4 +1,4 @@
-import { prisma } from "../../lib/prisma";
+import { prisma } from "../../lib/prisma.js";
 
 // Para autocompletar el formulario de delivery. null si el teléfono es nuevo.
 export async function buscarPorTelefono(negocioId: string, telefono: string) {

@@ -154,6 +154,28 @@ test("el dueño crea a un mozo, que entra con su usuario", async ({ browser }) =
   await boton(dueno, "Nueva persona").click();
 
   const ficha = dueno.getByRole("dialog", { name: "Nueva persona" });
+
+  await test.step("cerrar la ficha con cambios a medias pregunta antes", async () => {
+    // Sin tocar nada se cierra sin preguntar
+    await dueno.keyboard.press("Escape");
+    await expect(ficha).toBeHidden();
+    await boton(dueno, "Nueva persona").click();
+
+    await ficha.getByLabel("Nombre").fill("A medias");
+    await dueno.keyboard.press("Escape");
+    await expect(ficha.getByRole("alert")).toContainText("Hay cambios sin guardar");
+    await boton(ficha, "Seguir aquí").click();
+    await expect(ficha.getByRole("alert")).toHaveCount(0);
+    await expect(ficha.getByLabel("Nombre")).toHaveValue("A medias");
+
+    await boton(ficha, "Cerrar").click();
+    await boton(ficha, "Salir sin guardar").click();
+    await expect(ficha).toBeHidden();
+    await expect(boton(dueno, "Editar a A medias")).toHaveCount(0);
+    await boton(dueno, "Nueva persona").click();
+    await expect(ficha.getByLabel("Nombre")).toHaveValue("");
+  });
+
   await ficha.getByLabel("Nombre").fill("Soger");
   // El usuario se escribe solo en minúsculas y sin espacios
   await ficha.getByLabel("Usuario").fill("So ger");

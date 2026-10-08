@@ -1,8 +1,8 @@
 import type { Request, Response } from "express";
-import { sesionDe } from "../../middlewares/auth";
-import { esquemaParamsPedido } from "../pedidos/pedidos.schemas";
-import { esquemaAnularPago, esquemaCambiarMetodo, esquemaParamsPago, esquemaRegistrarPagos } from "./pagos.schemas";
-import * as servicio from "./pagos.service";
+import { sesionDe } from "../../middlewares/auth.js";
+import { esquemaParamsPedido } from "../pedidos/pedidos.schemas.js";
+import { esquemaAnularPago, esquemaCambiarMetodo, esquemaParamsPago, esquemaRegistrarPagos } from "./pagos.schemas.js";
+import * as servicio from "./pagos.service.js";
 
 export async function obtenerCuenta(req: Request, res: Response) {
   const { id } = esquemaParamsPedido.parse(req.params);

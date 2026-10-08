@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { Rol } from "../../generated/prisma/client";
-import { requireAuth, requireRol } from "../../middlewares/auth";
-import * as controlador from "./caja.controller";
+import { Rol } from "../../generated/prisma/client.js";
+import { requireAuth, requireRol } from "../../middlewares/auth.js";
+import * as controlador from "./caja.controller.js";
 
 export const rutasCaja = Router();
 

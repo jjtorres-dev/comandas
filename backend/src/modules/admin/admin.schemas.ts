@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { MetodoPago, Prisma, Rol } from "../../generated/prisma/client";
-import { esquemaTelefono } from "../../lib/telefono";
+import { MetodoPago, Prisma, Rol } from "../../generated/prisma/client.js";
+import { esquemaTelefono } from "../../lib/telefono.js";
 
 const nombre = (max = 80) => z.string().trim().min(1, "Escribe un nombre").max(max);
 const precio = z

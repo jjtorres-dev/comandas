@@ -1,8 +1,8 @@
 // Mesas, motorizados y notas rápidas. Lo que tiene historial se desactiva;
 // lo que nunca se usó se puede eliminar.
-import { conflicto, noEncontrado } from "../../lib/errores";
-import { prisma } from "../../lib/prisma";
-import { avisarCambio, mover } from "./comun";
+import { conflicto, noEncontrado } from "../../lib/errores.js";
+import { prisma } from "../../lib/prisma.js";
+import { avisarCambio, mover } from "./comun.js";
 
 const porOrden = [{ orden: "asc" as const }, { nombre: "asc" as const }];
 

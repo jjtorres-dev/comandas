@@ -1,11 +1,11 @@
 // El personal del negocio. El dueño crea a su gente, cambia contraseñas y
 // desactiva; nunca puede dejarse a sí mismo (ni al negocio) sin un ADMIN.
 import bcrypt from "bcrypt";
-import { Rol } from "../../generated/prisma/client";
-import { conflicto, noEncontrado } from "../../lib/errores";
-import { prisma } from "../../lib/prisma";
-import type { Sesion } from "../../middlewares/auth";
-import type { DatosCrearUsuario, DatosEditarUsuario } from "./admin.schemas";
+import { Rol } from "../../generated/prisma/client.js";
+import { conflicto, noEncontrado } from "../../lib/errores.js";
+import { prisma } from "../../lib/prisma.js";
+import type { Sesion } from "../../middlewares/auth.js";
+import type { DatosCrearUsuario, DatosEditarUsuario } from "./admin.schemas.js";
 
 const visible = { id: true, nombre: true, usuario: true, roles: true, activo: true, creadoEn: true } as const;
 

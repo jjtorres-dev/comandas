@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { sesionDe } from "../../middlewares/auth";
+import { sesionDe } from "../../middlewares/auth.js";
 import {
   esquemaAgregarItems,
   esquemaCambiarEstado,
@@ -12,8 +12,8 @@ import {
   esquemaParamsItem,
   esquemaParamsPedido,
   esquemaRepartidor,
-} from "./pedidos.schemas";
-import * as servicio from "./pedidos.service";
+} from "./pedidos.schemas.js";
+import * as servicio from "./pedidos.service.js";
 
 export async function crearPedido(req: Request, res: Response) {
   const { pedido, creado } = await servicio.crearPedido(sesionDe(req), esquemaCrearPedido.parse(req.body));

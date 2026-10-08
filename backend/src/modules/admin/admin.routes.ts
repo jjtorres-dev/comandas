@@ -1,8 +1,8 @@
 import express, { Router } from "express";
-import { Rol } from "../../generated/prisma/client";
-import { requireAuth, requireRol } from "../../middlewares/auth";
-import * as controlador from "./admin.controller";
-import { LOGO_MAXIMO } from "./negocio.admin";
+import { Rol } from "../../generated/prisma/client.js";
+import { requireAuth, requireRol } from "../../middlewares/auth.js";
+import * as controlador from "./admin.controller.js";
+import { LOGO_MAXIMO } from "./negocio.admin.js";
 
 export const rutasAdmin = Router();
 

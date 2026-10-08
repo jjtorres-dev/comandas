@@ -131,6 +131,8 @@ Decisiones tomadas por el dueño:
 Decisiones abiertas:
 
 - Impresión de comandas o notas de venta: no hay impresora por ahora.
+- Despliegue: el proyecto está preparado para Railway (`docs/DESPLIEGUE.md`),
+  pero todavía no se desplegó.
 
 ## Brand Commitments
 

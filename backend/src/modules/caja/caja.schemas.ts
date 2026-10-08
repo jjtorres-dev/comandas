@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { esquemaMonto } from "../../lib/dinero";
+import { esquemaMonto } from "../../lib/dinero.js";
 
 const MONTO_MAXIMO = 999_999;
 

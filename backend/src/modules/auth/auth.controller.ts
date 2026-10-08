@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
-import { sesionDe } from "../../middlewares/auth";
-import { esquemaLogin } from "./auth.schemas";
-import * as servicio from "./auth.service";
+import { sesionDe } from "../../middlewares/auth.js";
+import { esquemaLogin } from "./auth.schemas.js";
+import * as servicio from "./auth.service.js";
 
 export async function login(req: Request, res: Response) {
   res.json(await servicio.login(esquemaLogin.parse(req.body)));

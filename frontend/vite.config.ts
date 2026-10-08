@@ -36,7 +36,10 @@ export default defineConfig(({ mode }) => {
       react(),
       tailwindcss(),
       VitePWA({
-        registerType: "autoUpdate",
+        // La versión nueva espera a que alguien toque "Actualizar" (AvisoVersion):
+        // nunca reemplaza a la que está en uso ni recarga la página por su cuenta
+        registerType: "prompt",
+        injectRegister: false,
         includeAssets: ["favicon.svg", "apple-touch-icon.png"],
         manifest: {
           name: "Comandas",

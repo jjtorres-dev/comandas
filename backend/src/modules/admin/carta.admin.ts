@@ -1,11 +1,11 @@
 // Mantenimiento de la carta. Nada de aquí toca pedidos ya tomados: cada item
 // guarda su propia copia del nombre y del precio.
-import { Prisma } from "../../generated/prisma/client";
-import { dinero } from "../../lib/dinero";
-import { conflicto, noEncontrado, solicitudInvalida } from "../../lib/errores";
-import { prisma, type Tx } from "../../lib/prisma";
-import type { DatosCrearProducto, DatosEditarProducto } from "./admin.schemas";
-import { avisarCambio, mover } from "./comun";
+import { Prisma } from "../../generated/prisma/client.js";
+import { dinero } from "../../lib/dinero.js";
+import { conflicto, noEncontrado, solicitudInvalida } from "../../lib/errores.js";
+import { prisma, type Tx } from "../../lib/prisma.js";
+import type { DatosCrearProducto, DatosEditarProducto } from "./admin.schemas.js";
+import { avisarCambio, mover } from "./comun.js";
 
 const ordenado = [{ orden: "asc" }, { nombre: "asc" }] satisfies Prisma.CategoriaOrderByWithRelationInput[];
 

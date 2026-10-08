@@ -10,6 +10,10 @@ inicio. Primer cliente: "Cevichería Valentina" (Tarapoto, Perú).
   `backend/docs/API.md`.
 - `frontend/`: aplicación web (Vite, React, TypeScript, Tailwind CSS v4).
 - `docker-compose.yml`: PostgreSQL 16 (puerto 5433 en el host) y Adminer (8080).
+  Solo para desarrollo.
+- `Dockerfile`, `.dockerignore` y `railway.json`: la imagen de producción, un
+  solo servicio en el que el backend sirve también el frontend. Los pasos para
+  Railway, los respaldos y cómo volver atrás están en `docs/DESPLIEGUE.md`.
 - `PRODUCT.md`: quién usa el producto, en qué condiciones y con qué principios.
 - `DESIGN.md`: sistema de diseño (colores, tipografía, componentes y reglas). Su
   complemento para herramientas está en `.impeccable/design.json`.
@@ -113,6 +117,14 @@ Después, seguir `DESIGN.md`: los tokens están en `frontend/src/estilos.css`
   `carta:actualizada` refresca la carta, las mesas, los motorizados y la sesión
   en todos los equipos; los umbrales de tardanza de cocina llegan en
   `GET /carta` (`cocina`).
+- Fichas de `/admin`: todas usan `paginas/admin/Ficha.tsx`, que recibe
+  `sinGuardar` y, al cerrar con cambios a medias, pregunta "Seguir aquí" o
+  "Salir sin guardar" (igual que `Modificar` en Delivery).
+- Versión nueva (PWA): el service worker está en modo `prompt`.
+  `componentes/AvisoVersion.tsx` lo registra, pregunta por una versión nueva
+  cada 15 minutos y al volver a la app, y muestra el aviso "Hay una versión
+  nueva · Actualizar". **Nunca recarga solo**; los borradores y la cola del
+  mozo están en el equipo y sobreviven a la recarga.
 - Hojas inferiores: `HojaInferior` se ajusta al teclado (meta viewport con
   `interactive-widget=resizes-content` más `visualViewport`). Los avisos de
   sonner salen abajo, sobre la barra fija de cada pantalla, que publica su alto
@@ -125,6 +137,13 @@ Después, seguir `DESIGN.md`: los tokens están en `frontend/src/estilos.css`
   `comandas_e2e` con migraciones y seed en cada corrida) y su propio Vite
   (puerto 5183). Solo hace falta el contenedor de Postgres.
 - La PWA se llama "Comandas" y sus íconos son genéricos (`frontend/public/`).
+
+## Producción
+
+- `podman build -t comandas .` desde la raíz construye la imagen. Para probarla
+  se usa una base de prueba, nunca la de desarrollo: al arrancar aplica las
+  migraciones (ver el final de `docs/DESPLIEGUE.md`).
+- En producción todo sale del mismo origen: `VITE_API_URL` va vacío.
 
 ## Convenciones
 
