@@ -1,4 +1,4 @@
-import { EstadoItem, EstadoPedido, Prisma, Rol, TipoPedido } from "../../generated/prisma/client";
+import { EstadoItem, EstadoPedido, MetodoPago, MomentoPago, Prisma, Rol, TipoPedido } from "../../generated/prisma/client";
 import { CERO } from "../../lib/dinero";
 import { conflicto, noEncontrado, sinPermiso, solicitudInvalida } from "../../lib/errores";
 import { prisma, type Tx } from "../../lib/prisma";
@@ -22,6 +22,8 @@ import type {
   DatosCargos,
   DatosCrearPedido,
   ItemEntrada,
+  DatosEntrega,
+  DatosPagoPrevisto,
 } from "./pedidos.schemas";
 
 const VARIANTE_UNICA = "Única";
@@ -111,20 +113,36 @@ async function insertarRonda(
 }
 
 // Datos de entrega según el tipo. En MESA no hay cliente, envío ni tapers.
+// El distrito tiene que ser uno de los del negocio (si el negocio los tiene definidos)
+function validarDistrito(negocio: { distritos: string[] }, distrito: string | undefined) {
+  if (distrito && negocio.distritos.length > 0 && !negocio.distritos.includes(distrito)) {
+    throw solicitudInvalida(`"${distrito}" no es un distrito de reparto de este negocio`, { distritos: negocio.distritos });
+  }
+}
+
+// Campos del pedido para el pago previsto. pagaCon solo vale en efectivo al recibir.
+function camposDePago(pago: DatosPagoPrevisto) {
+  const enEfectivo = pago.momento === MomentoPago.AL_RECIBIR && pago.metodo === MetodoPago.EFECTIVO;
+  return { pagoMomento: pago.momento, pagoMetodo: pago.metodo, pagaCon: enEfectivo ? (pago.pagaCon ?? null) : null };
+}
+
 async function prepararEntrega(
   tx: Tx,
-  negocio: { id: string; costoEnvioDefault: Prisma.Decimal; precioTaper: Prisma.Decimal },
+  negocio: { id: string; costoEnvioDefault: Prisma.Decimal; precioTaper: Prisma.Decimal; distritos: string[] },
   datos: DatosCrearPedido,
 ) {
   if (datos.tipo === TipoPedido.MESA) return {};
 
   const esDelivery = datos.tipo === TipoPedido.DELIVERY;
   const { telefono, nombre, direccion, referencia } = datos.cliente ?? {};
+  validarDistrito(negocio, datos.cliente?.distrito);
+  // Un delivery sin distrito va al primero del negocio
+  const distrito = esDelivery ? (datos.cliente?.distrito ?? negocio.distritos[0] ?? null) : null;
 
   // Con teléfono se guarda (o actualiza) el cliente para autocompletar la próxima vez
   let cliente = null;
   if (telefono) {
-    const entrega = esDelivery ? { direccion, referencia: referencia ?? null } : {};
+    const entrega = esDelivery ? { direccion, distrito, referencia: referencia ?? null } : {};
     cliente = await tx.cliente.upsert({
       where: { negocioId_telefono: { negocioId: negocio.id, telefono } },
       create: { negocioId: negocio.id, telefono, nombre, ...entrega },
@@ -148,8 +166,10 @@ async function prepararEntrega(
     telefonoCliente: telefono ?? null,
     // Copias: si el cliente se muda después, este pedido no cambia
     direccionEntrega: esDelivery ? direccion : null,
+    distritoEntrega: distrito,
     referenciaEntrega: esDelivery ? (referencia ?? null) : null,
     costoEnvio: esDelivery ? (datos.costoEnvio ?? negocio.costoEnvioDefault) : CERO,
+    ...(datos.pagoPrevisto ? camposDePago(datos.pagoPrevisto) : {}),
     ...tapers,
   };
 }
@@ -423,6 +443,105 @@ export async function asignarRepartidor(sesion: Sesion, pedidoId: string, repart
     }
 
     await tx.pedido.update({ where: { id: pedidoId }, data: { repartidorId } });
+    return obtenerCompleto(tx, pedidoId);
+  });
+
+  return publicar("pedido:actualizado", actualizado);
+}
+
+// Pedidos por teléfono del día para el tablero de Delivery: todos los DELIVERY
+// y los PARA_LLEVAR con teléfono, creados hoy (hora de Lima) o todavía sin
+// cerrar de un día anterior. Incluye los entregados y pagados; no los cancelados.
+export async function listarPorTelefono(negocioId: string) {
+  const pedidos = await prisma.pedido.findMany({
+    where: {
+      negocioId,
+      estado: { not: EstadoPedido.CANCELADO },
+      AND: [
+        { OR: [{ tipo: TipoPedido.DELIVERY }, { tipo: TipoPedido.PARA_LLEVAR, telefonoCliente: { not: null } }] },
+        { OR: [{ creadoEn: { gte: inicioDelDia() } }, { pagado: false }, { estado: { not: EstadoPedido.ENTREGADO } }] },
+      ],
+    },
+    orderBy: { creadoEn: "asc" },
+    include: incluirCompleto,
+  });
+  return pedidos.map(serializar);
+}
+
+// El último pedido (no cancelado) de un cliente, para "Repetir pedido"
+export async function ultimoPedidoDe(negocioId: string, telefono: string) {
+  const pedido = await prisma.pedido.findFirst({
+    where: { negocioId, cliente: { telefono }, estado: { not: EstadoPedido.CANCELADO } },
+    orderBy: { creadoEn: "desc" },
+    include: incluirCompleto,
+  });
+  return pedido ? serializar(pedido) : null;
+}
+
+// Corrige los datos de entrega y el pago previsto de un pedido por teléfono
+// que todavía no se entregó (el cliente volvió a llamar)
+export async function actualizarEntrega(sesion: Sesion, pedidoId: string, datos: DatosEntrega) {
+  const actualizado = await prisma.$transaction(async (tx) => {
+    const pedido = await bloquearPedido(tx, sesion.negocioId, pedidoId);
+    exigirNoCancelado(pedido);
+    if (pedido.tipo === TipoPedido.MESA) throw conflicto("NO_ES_DELIVERY", "Un pedido de mesa no tiene datos de entrega");
+    if (pedido.estado === EstadoPedido.ENTREGADO) throw conflicto("PEDIDO_ENTREGADO", "El pedido ya se entregó: no se puede modificar");
+
+    const esDelivery = pedido.tipo === TipoPedido.DELIVERY;
+    if (!esDelivery && (datos.direccion !== undefined || datos.distrito !== undefined || datos.referencia !== undefined)) {
+      throw solicitudInvalida("Un pedido para llevar no tiene dirección de entrega");
+    }
+    const negocio = await tx.negocio.findUniqueOrThrow({ where: { id: sesion.negocioId }, select: { distritos: true } });
+    validarDistrito(negocio, datos.distrito);
+
+    const entrega = {
+      ...(datos.direccion !== undefined ? { direccionEntrega: datos.direccion } : {}),
+      ...(datos.distrito !== undefined ? { distritoEntrega: datos.distrito } : {}),
+      ...(datos.referencia !== undefined ? { referenciaEntrega: datos.referencia || null } : {}),
+    };
+    await tx.pedido.update({
+      where: { id: pedidoId },
+      data: {
+        ...entrega,
+        ...(datos.nombre !== undefined ? { nombreCliente: datos.nombre } : {}),
+        ...(datos.pagoPrevisto ? camposDePago(datos.pagoPrevisto) : {}),
+      },
+    });
+    // La dirección corregida es la que se autocompleta la próxima vez
+    if (pedido.clienteId) {
+      await tx.cliente.update({
+        where: { id: pedido.clienteId },
+        data: {
+          ...(datos.nombre !== undefined ? { nombre: datos.nombre } : {}),
+          ...(datos.direccion !== undefined ? { direccion: datos.direccion } : {}),
+          ...(datos.distrito !== undefined ? { distrito: datos.distrito } : {}),
+          ...(datos.referencia !== undefined ? { referencia: datos.referencia || null } : {}),
+        },
+      });
+    }
+    return obtenerCompleto(tx, pedidoId);
+  });
+
+  return publicar("pedido:actualizado", actualizado);
+}
+
+// Cancela el pedido entero, con su motivo. Solo antes de que salga, y sin
+// pagos vigentes: la plata ya cobrada se anula primero en Caja.
+export async function cancelarPedido(sesion: Sesion, pedidoId: string, motivo: string) {
+  const actualizado = await prisma.$transaction(async (tx) => {
+    const pedido = await bloquearPedido(tx, sesion.negocioId, pedidoId);
+    exigirNoCancelado(pedido);
+    if (pedido.estado === EstadoPedido.EN_CAMINO || pedido.estado === EstadoPedido.ENTREGADO) {
+      throw conflicto("PEDIDO_YA_SALIO", "El pedido ya salió: no se puede cancelar");
+    }
+    if ((await tx.pago.count({ where: { pedidoId, anuladoEn: null } })) > 0) {
+      throw conflicto("PEDIDO_CON_PAGOS", "El pedido tiene un pago registrado. Anúlalo en Caja antes de cancelar el pedido");
+    }
+
+    await tx.pedidoItem.updateMany({ where: { pedidoId }, data: { estado: EstadoItem.CANCELADO, listoEn: null } });
+    await tx.pedido.update({ where: { id: pedidoId }, data: { motivoCancelacion: motivo } });
+    await recalcularTapers(tx, pedidoId);
+    await recalcular(tx, pedidoId);
     return obtenerCompleto(tx, pedidoId);
   });
 

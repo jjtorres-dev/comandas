@@ -94,6 +94,13 @@ está en `../CLAUDE.md`. Todos los comandos de este archivo se ejecutan desde
 - Delivery y para llevar: el teléfono se guarda normalizado (solo dígitos, sin el
   51). Con teléfono se hace upsert de `Cliente`; nombre, teléfono, dirección y
   referencia se copian al pedido.
+- Pedidos por teléfono: `Pedido.pagoMomento`, `pagoMetodo` y `pagaCon` son el
+  **pago previsto** (lo que el motorizado necesita saber), no un pago: nada
+  entra a la caja hasta `POST /pedidos/:id/pagos`. El vuelto se calcula al
+  serializar. `Negocio.distritos` (el primero es el de por defecto) y
+  `Negocio.region` arman la dirección para el mapa; el distrito se copia a
+  `Cliente` y a `Pedido.distritoEntrega`. `GET /pedidos/por-telefono` es el
+  tablero del día y `PATCH /:id/entrega` y `/:id/cancelar` las correcciones.
 - Tapers: `Producto.tapers` dice cuántos ocupa una unidad (bebidas 0, combos 2 o 3,
   el resto 1). La cantidad del pedido es la suma de `cantidad × tapers` de los
   items no cancelados y se recalcula (`recalcularTapers`) al crear, agregar una

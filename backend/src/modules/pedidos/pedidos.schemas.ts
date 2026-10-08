@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { EstadoItem, EstadoPedido, TipoPedido } from "../../generated/prisma/client";
+import { EstadoItem, EstadoPedido, MetodoPago, MomentoPago, Prisma, TipoPedido } from "../../generated/prisma/client";
 import { esquemaMonto } from "../../lib/dinero";
 import { esquemaTelefono } from "../../lib/telefono";
 
@@ -28,8 +28,34 @@ const esquemaCliente = z.object({
   telefono: esquemaTelefono.optional(),
   nombre: textoOpcional(100),
   direccion: textoOpcional(200),
+  // Uno de los distritos del negocio. Si falta en un delivery, se usa el primero
+  distrito: textoOpcional(100),
   referencia: textoOpcional(200),
 });
+
+// Lo que el motorizado necesita saber: si ya está pagado (por confirmar) o si
+// cobra al entregar, cómo y con cuánto le van a pagar
+export const esquemaPagoPrevisto = z
+  .object({
+    momento: z.enum(MomentoPago),
+    metodo: z.enum(MetodoPago),
+    // Solo AL_RECIBIR en EFECTIVO: con cuánto paga el cliente
+    pagaCon: z
+      .number()
+      .positive()
+      .max(99_999)
+      .multipleOf(0.01)
+      .transform((n) => new Prisma.Decimal(n))
+      .optional(),
+  })
+  .superRefine((pago, ctx) => {
+    if (pago.momento === MomentoPago.ANTICIPADO && pago.metodo !== MetodoPago.YAPE && pago.metodo !== MetodoPago.PLIN) {
+      ctx.addIssue({ code: "custom", path: ["metodo"], message: "Un pago anticipado solo puede ser por Yape o Plin" });
+    }
+    if (pago.pagaCon !== undefined && !(pago.momento === MomentoPago.AL_RECIBIR && pago.metodo === MetodoPago.EFECTIVO)) {
+      ctx.addIssue({ code: "custom", path: ["pagaCon"], message: "pagaCon solo aplica al efectivo que se paga al recibir" });
+    }
+  });
 
 const esquemaCostoEnvio = esquemaMonto(COSTO_ENVIO_MAXIMO);
 const esquemaTapers = z.number().int().min(0).max(200);
@@ -46,6 +72,8 @@ export const esquemaCrearPedido = z
     cliente: esquemaCliente.optional(),
     // Solo DELIVERY. Si falta se usa Negocio.costoEnvioDefault
     costoEnvio: esquemaCostoEnvio.optional(),
+    // DELIVERY y PARA_LLEVAR: cómo va a pagar. Se ignora en MESA
+    pagoPrevisto: esquemaPagoPrevisto.optional(),
     // DELIVERY y PARA_LLEVAR. Si falta se calcula con los items (cantidad × Producto.tapers)
     // y se recalcula sola; si viene, queda fija (tapersManual)
     cantidadTapers: esquemaTapers.optional(),
@@ -97,6 +125,24 @@ export const esquemaCargos = z
     message: "Envía al menos uno: costoEnvio, cantidadTapers o descuento",
   });
 
+// Correcciones a un pedido por teléfono ya enviado: lo que no se envía no cambia
+export const esquemaEntrega = z
+  .object({
+    nombre: textoOpcional(100),
+    direccion: textoOpcional(200),
+    distrito: textoOpcional(100),
+    // null o "" borran la referencia
+    referencia: z.string().trim().max(200).nullable().optional(),
+    pagoPrevisto: esquemaPagoPrevisto.optional(),
+  })
+  .refine((d) => Object.values(d).some((v) => v !== undefined), {
+    message: "Envía al menos un dato para corregir",
+  });
+
+export const esquemaCancelarPedido = z.object({
+  motivo: z.string().trim().min(3, "Escribe el motivo de la cancelación").max(200),
+});
+
 export const esquemaRepartidor = z.object({ repartidorId: z.uuid().nullable() });
 
 export const esquemaEstadoPedido = z.object({
@@ -109,6 +155,8 @@ export const esquemaParamsPedido = z.object({ id: z.uuid() });
 export const esquemaParamsItem = z.object({ id: z.uuid(), itemId: z.uuid() });
 
 export type ItemEntrada = z.infer<typeof esquemaItem>;
+export type DatosEntrega = z.infer<typeof esquemaEntrega>;
+export type DatosPagoPrevisto = z.infer<typeof esquemaPagoPrevisto>;
 export type DatosCrearPedido = z.infer<typeof esquemaCrearPedido>;
 export type DatosAgregarItems = z.infer<typeof esquemaAgregarItems>;
 export type DatosCambiarEstado = z.infer<typeof esquemaCambiarEstado>;

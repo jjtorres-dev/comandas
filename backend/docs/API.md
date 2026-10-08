@@ -77,7 +77,10 @@ Lo devuelven todos los endpoints que crean o modifican un pedido, `GET
   "mozo": { "id": "…", "nombre": "Mozo" },
   "cliente": { "nombre": "Rosa Pérez", "telefono": "987654321" },
   "direccionEntrega": "Jr. San Martín 245",
+  "distritoEntrega": "Morales",
   "referenciaEntrega": "Frente al parque",
+  "pagoPrevisto": { "momento": "AL_RECIBIR", "metodo": "EFECTIVO", "pagaCon": "150.00", "vuelto": "32.00" },
+  "motivoCancelacion": null,
   "repartidor": null,
   "nota": null,
   "subtotal": "110.00",
@@ -121,8 +124,10 @@ Lo devuelven todos los endpoints que crean o modifican un pedido, `GET
 | `mesaLiberada` | `true` si el pedido de mesa ya estuvo pagado y su cuenta se reabrió al anular un pago ("cuenta reabierta"): sigue debiendo y figura entre los activos, pero no ocupa la mesa |
 | `mozo` | `{ id, nombre }` de quien creó el pedido (sea cual sea su rol) |
 | `cliente` | `{ nombre, telefono }` (cualquiera puede ser `null`), o `null` si no hay datos. Siempre `null` en `MESA` |
-| `direccionEntrega`, `referenciaEntrega` | Solo `DELIVERY`. Copia del momento del pedido |
-| `repartidor` | `{ id, nombre }` o `null` |
+| `direccionEntrega`, `distritoEntrega`, `referenciaEntrega` | Solo `DELIVERY`. Copia del momento del pedido. `distritoEntrega` es uno de los distritos de reparto del negocio |
+| `pagoPrevisto` | Pedidos por teléfono: cómo va a pagar el cliente, o `null`. **No es un pago**: el cobro entra a la caja con `POST /pedidos/:id/pagos`. `momento` es `ANTICIPADO` (dice que ya pagó por Yape o Plin: queda por confirmar) o `AL_RECIBIR`; `metodo` es el previsto; `pagaCon` (solo efectivo al recibir) es con cuánto paga, y `vuelto` lo que debe llevar el motorizado (`pagaCon − saldoPendiente`, o `null` si no alcanza). `vuelto` se recalcula con el pedido |
+| `motivoCancelacion` | Por qué se canceló el pedido entero con `PATCH /pedidos/:id/cancelar`; `null` en los demás |
+| `repartidor` | `{ id, nombre, telefono }` o `null` |
 | `total` | `subtotal + costoEnvio + cargoTapers - descuento` |
 | `totalPagado`, `saldoPendiente` | Solo cuentan los pagos vigentes: uno anulado no suma |
 | `tapersManual` | `true` si la cantidad de tapers se fijó a mano y ya no se recalcula |
@@ -320,7 +325,8 @@ lleva en su código.
     }
   ],
   "notasRapidas": [{ "id": "…", "texto": "Sin cebolla" }],
-  "areas": [{ "id": "…", "nombre": "Cocina" }, { "id": "…", "nombre": "Bebidas" }]
+  "areas": [{ "id": "…", "nombre": "Cocina" }, { "id": "…", "nombre": "Bebidas" }],
+  "reparto": { "costoEnvioDefault": "3.00", "precioTaper": "1.00", "distritos": ["Tarapoto", "Morales", "La Banda de Shilcayo"], "region": "San Martín, Perú" }
 }
 ```
 
@@ -331,6 +337,7 @@ lleva en su código.
 | `esCombo`, `comboCantidad` | En un combo el cliente elige exactamente `comboCantidad` platos (2 = doble, 3 = triple) |
 | `opcionesCombo` | Solo combos: `[{ productoId, nombre }]`, los platos elegibles. El `productoId` es lo que se envía en `componentes` |
 | `notasRapidas` | Botones de texto para las notas de un item |
+| `reparto` | Para tomar un pedido por teléfono y decirle el total al cliente: envío por defecto, precio de cada taper, distritos de reparto (el primero es el de por defecto) y la región que completa la dirección al buscarla en un mapa (`dirección, distrito, región`). `distritos` puede venir vacío y `region` en `null` |
 | `areas` | Áreas de preparación activas, en su orden: `[{ id, nombre }]`. Es el `areaId` de cada producto y de cada item de un pedido; el panel de cocina agrupa y filtra por ellas |
 
 ---
@@ -372,13 +379,24 @@ solo por dígitos y sin el prefijo 51.
 **200** — con `cliente: null` si el teléfono no está registrado (no es un 404):
 
 ```json
-{ "cliente": { "id": "…", "telefono": "987654321", "nombre": "Rosa Pérez", "direccion": "Jr. San Martín 245", "referencia": "Frente al parque" } }
+{ "cliente": { "id": "…", "telefono": "987654321", "nombre": "Rosa Pérez", "direccion": "Jr. San Martín 245", "distrito": "Morales", "referencia": "Frente al parque" } }
 ```
 
 **Errores**: 400 `DATOS_INVALIDOS` si falta `telefono` o no tiene entre 6 y 15 dígitos.
 
 Los clientes se crean y actualizan solos al registrar pedidos con teléfono; no
 hay endpoint para crearlos.
+
+### `GET /api/clientes/ultimo-pedido?telefono=`
+
+**Roles**: cualquiera. El último pedido no cancelado de ese cliente, para
+"Repetir pedido". Mismo formato de teléfono que `/buscar`.
+
+**200** `{ "pedido": Pedido }`, o `{ "pedido": null }` si el cliente no existe o
+no tiene pedidos. Los platos de un combo vienen por nombre (`componentes`): para
+repetirlo hay que buscarlos entre las `opcionesCombo` actuales de la carta.
+
+**Errores**: 400 `DATOS_INVALIDOS` si falta `telefono` o no tiene entre 6 y 15 dígitos.
 
 ---
 
@@ -388,7 +406,7 @@ hay endpoint para crearlos.
 
 **Roles**: cualquiera. Repartidores activos, por nombre.
 
-**200** `{ "repartidores": [{ "id": "…", "nombre": "Motorizado", "telefono": null }] }`
+**200** `{ "repartidores": [{ "id": "…", "nombre": "Motorizado", "telefono": "999888777" }] }` (`telefono` puede ser `null`)
 
 ---
 
@@ -410,6 +428,15 @@ Crea un pedido con su primera ronda. **Roles**: `MOZO`, `LOCAL`, `ADMIN`.
 | `cliente` | objeto | Obligatorio en `DELIVERY`, opcional en `PARA_LLEVAR`, se ignora en `MESA` |
 | `costoEnvio` | número 0–20 | Solo `DELIVERY`. Si falta, se usa el costo de envío por defecto del negocio. Se ignora en los demás tipos |
 | `cantidadTapers` | entero 0–200 | Solo `DELIVERY` y `PARA_LLEVAR`. Si falta, se calcula sola; si viene, queda fija (`tapersManual`). Se ignora en `MESA` |
+| `pagoPrevisto` | objeto | Opcional, `DELIVERY` y `PARA_LLEVAR`. Ver abajo |
+
+`pagoPrevisto`:
+
+| Campo | Tipo | |
+|---|---|---|
+| `momento` | `"ANTICIPADO"` \| `"AL_RECIBIR"` | Obligatorio. `ANTICIPADO`: el cliente dice que ya pagó; queda por confirmar |
+| `metodo` | `"EFECTIVO"` \| `"YAPE"` \| `"PLIN"` \| `"TARJETA"` | Obligatorio. `ANTICIPADO` solo admite `YAPE` o `PLIN` |
+| `pagaCon` | número > 0 | Solo `AL_RECIBIR` en `EFECTIVO`: con cuánto paga |
 
 `items[]`:
 
@@ -427,6 +454,7 @@ Crea un pedido con su primera ronda. **Roles**: `MOZO`, `LOCAL`, `ADMIN`.
 | `telefono` | texto, 6–15 dígitos | Obligatorio en `DELIVERY`. Con teléfono, el cliente se guarda o actualiza para autocompletar después |
 | `nombre` | texto ≤ 100 | Opcional. En un cliente existente, si no viene se conserva el anterior |
 | `direccion` | texto ≤ 200 | Obligatorio en `DELIVERY` |
+| `distrito` | texto ≤ 100 | Solo `DELIVERY`. Uno de `reparto.distritos` de la carta. Si falta, se usa el primero |
 | `referencia` | texto ≤ 200 | Opcional |
 
 Precios y nombres se toman siempre de la base de datos.
@@ -457,6 +485,7 @@ Precios y nombres se toman siempre de la base de datos.
 | 400 | `SOLICITUD_INVALIDA` | Combo con una cantidad de platos distinta de `comboCantidad` | |
 | 400 | `SOLICITUD_INVALIDA` | Combo con un plato que no es una de sus opciones | `productoId` |
 | 400 | `SOLICITUD_INVALIDA` | `componentes` en un producto que no es combo | |
+| 400 | `SOLICITUD_INVALIDA` | `cliente.distrito` no es un distrito de reparto del negocio | `distritos` |
 | 404 | `NO_ENCONTRADO` | La mesa no existe | |
 | 409 | `MESA_OCUPADA` | La mesa ya tiene un pedido abierto: hay que agregarle una ronda | `pedidoId` |
 | 409 | `ID_CLIENTE_EN_USO` | Ese `idCliente` ya se usó en otro negocio; generar uno nuevo | |
@@ -507,6 +536,16 @@ más antiguo al más nuevo. **Roles**: cualquiera.
 **200** `{ "pedidos": [Pedido, …] }`
 
 **Errores**: 400 `DATOS_INVALIDOS` si `areaId` no es un UUID.
+
+### `GET /api/pedidos/por-telefono`
+
+Tablero de Delivery. **Roles**: cualquiera. Todos los `DELIVERY` y los
+`PARA_LLEVAR` con teléfono, creados hoy (hora de `America/Lima`) o todavía sin
+entregar o sin pagar de un día anterior, del más antiguo al más nuevo. A
+diferencia de `/activos`, **incluye los ya entregados y pagados** de hoy; no
+incluye los cancelados.
+
+**200** `{ "pedidos": [Pedido, …] }`
 
 ### `PATCH /api/pedidos/:id/items/estado`
 
@@ -577,6 +616,60 @@ primer pago.
 | 404 | `NO_ENCONTRADO` | El pedido no existe |
 | 409 | `PEDIDO_CON_PAGOS` | El pedido ya tiene algún pago |
 | 409 | `PEDIDO_CANCELADO` | El pedido está cancelado |
+
+### `PATCH /api/pedidos/:id/entrega`
+
+Corrige los datos de entrega o el pago previsto de un pedido por teléfono que
+todavía no se entregó (el cliente volvió a llamar). **Roles**: `LOCAL`, `ADMIN`.
+
+**Body** — al menos un campo; lo que no se envía no cambia:
+
+| Campo | Tipo | |
+|---|---|---|
+| `nombre` | texto ≤ 100 | |
+| `direccion` | texto ≤ 200 | Solo `DELIVERY` |
+| `distrito` | texto ≤ 100 | Solo `DELIVERY`. Uno de los distritos de reparto |
+| `referencia` | texto ≤ 200 \| `null` | Solo `DELIVERY`. `""` o `null` la borran |
+| `pagoPrevisto` | objeto | Igual que al crear el pedido. Reemplaza al anterior |
+
+Si el pedido tiene un cliente guardado, su nombre y su dirección se actualizan
+también, para la próxima vez.
+
+**200** `{ pedido: Pedido }`. Emite `pedido:actualizado`.
+
+**Errores**
+
+| HTTP | `codigo` | Cuándo |
+|---|---|---|
+| 400 | `DATOS_INVALIDOS` | Body vacío o `pagoPrevisto` mal armado |
+| 400 | `SOLICITUD_INVALIDA` | Dirección en un pedido para llevar, o distrito que no es del negocio |
+| 404 | `NO_ENCONTRADO` | El pedido no existe |
+| 409 | `NO_ES_DELIVERY` | El pedido es de mesa |
+| 409 | `PEDIDO_ENTREGADO` | El pedido ya se entregó |
+| 409 | `PEDIDO_CANCELADO` | El pedido está cancelado |
+
+### `PATCH /api/pedidos/:id/cancelar`
+
+Cancela el pedido entero, con su motivo. **Roles**: `LOCAL`, `ADMIN`. A
+diferencia de cancelar items uno por uno, no importa en qué estado estén: sirve
+mientras el pedido no haya salido.
+
+**Body** `{ "motivo": "El cliente ya no lo quiere" }`: texto de 3 a 200 caracteres, obligatorio.
+
+Todos los items pasan a `CANCELADO`, el pedido queda `CANCELADO` con
+`motivoCancelacion`, y libera la mesa si era de mesa.
+
+**200** `{ pedido: Pedido }`. Emite `pedido:actualizado`.
+
+**Errores**
+
+| HTTP | `codigo` | Cuándo |
+|---|---|---|
+| 400 | `DATOS_INVALIDOS` | Falta el motivo o tiene menos de 3 caracteres |
+| 404 | `NO_ENCONTRADO` | El pedido no existe |
+| 409 | `PEDIDO_CON_PAGOS` | El pedido tiene algún pago vigente: hay que anularlo primero en Caja |
+| 409 | `PEDIDO_YA_SALIO` | El pedido está `EN_CAMINO` o `ENTREGADO` |
+| 409 | `PEDIDO_CANCELADO` | Ya estaba cancelado |
 
 ### `PATCH /api/pedidos/:id/repartidor`
 
@@ -992,13 +1085,17 @@ Notas para el frontend:
 | GET | `/api/carta` | cualquiera | |
 | GET | `/api/mesas` | MOZO, LOCAL, ADMIN | |
 | GET | `/api/clientes/buscar?telefono=` | cualquiera | |
+| GET | `/api/clientes/ultimo-pedido?telefono=` | cualquiera | |
 | GET | `/api/repartidores` | cualquiera | |
 | POST | `/api/pedidos` | MOZO, LOCAL, ADMIN | `pedido:creado` |
 | GET | `/api/pedidos/activos[?areaId=]` | cualquiera | |
+| GET | `/api/pedidos/por-telefono` | cualquiera | |
 | POST | `/api/pedidos/:id/items` | MOZO, LOCAL, ADMIN | `pedido:actualizado` |
 | PATCH | `/api/pedidos/:id/items/estado` | MOZO, LOCAL, ADMIN | `pedido:actualizado` |
 | PATCH | `/api/pedidos/:id/items/:itemId/cancelar` | MOZO, LOCAL, ADMIN (no pendiente: solo ADMIN) | `pedido:actualizado` |
 | PATCH | `/api/pedidos/:id/cargos` | LOCAL, ADMIN | `pedido:actualizado` |
+| PATCH | `/api/pedidos/:id/entrega` | LOCAL, ADMIN | `pedido:actualizado` |
+| PATCH | `/api/pedidos/:id/cancelar` | LOCAL, ADMIN | `pedido:actualizado` |
 | PATCH | `/api/pedidos/:id/repartidor` | MOZO, LOCAL, ADMIN | `pedido:actualizado` |
 | PATCH | `/api/pedidos/:id/estado` | MOZO, LOCAL, ADMIN | `pedido:actualizado` |
 | GET | `/api/pedidos/:id/cuenta` | cualquiera | |

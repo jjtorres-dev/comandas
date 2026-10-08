@@ -3,7 +3,7 @@ import { prisma } from "../../lib/prisma";
 
 // Carta completa para tomar pedidos: solo lo activo, en el orden configurado
 export async function obtenerCarta(negocioId: string) {
-  const [categorias, notasRapidas, areas] = await Promise.all([
+  const [categorias, notasRapidas, areas, negocio] = await Promise.all([
     prisma.categoria.findMany({
       where: { negocioId, activo: true },
       orderBy: [{ orden: "asc" }, { nombre: "asc" }],
@@ -31,6 +31,10 @@ export async function obtenerCarta(negocioId: string) {
       where: { negocioId, activo: true },
       orderBy: [{ orden: "asc" }, { nombre: "asc" }],
     }),
+    prisma.negocio.findUniqueOrThrow({
+      where: { id: negocioId },
+      select: { costoEnvioDefault: true, precioTaper: true, distritos: true, region: true },
+    }),
   ]);
 
   return {
@@ -56,5 +60,12 @@ export async function obtenerCarta(negocioId: string) {
     })),
     notasRapidas: notasRapidas.map((n) => ({ id: n.id, texto: n.texto })),
     areas: areas.map((a) => ({ id: a.id, nombre: a.nombre })),
+    // Para tomar un pedido por teléfono: lo que hace falta para decirle el total al cliente
+    reparto: {
+      costoEnvioDefault: dinero(negocio.costoEnvioDefault),
+      precioTaper: dinero(negocio.precioTaper),
+      distritos: negocio.distritos,
+      region: negocio.region,
+    },
   };
 }

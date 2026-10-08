@@ -173,6 +173,9 @@ async function crearNegocio(tx: Tx, usuarios: { usuario: string; nombre: string;
       logoUrl: LOGO_NEGOCIO,
       costoEnvioDefault: "3.00",
       precioTaper: "1.00",
+      // Reparto: el primer distrito es el de por defecto
+      distritos: ["Tarapoto", "Morales", "La Banda de Shilcayo"],
+      region: "San Martín, Perú",
     },
   });
   const negocioId = negocio.id;
@@ -188,7 +191,7 @@ async function crearNegocio(tx: Tx, usuarios: { usuario: string; nombre: string;
     data: Array.from({ length: 7 }, (_, i) => ({ negocioId, nombre: `Mesa ${i + 1}`, orden: i + 1 })),
   });
 
-  await tx.repartidor.create({ data: { negocioId, nombre: "Motorizado" } });
+  await tx.repartidor.create({ data: { negocioId, nombre: "Motorizado", telefono: "999888777" } });
 
   await tx.notaRapida.createMany({
     data: NOTAS_RAPIDAS.map((texto, i) => ({ negocioId, texto, orden: i + 1 })),

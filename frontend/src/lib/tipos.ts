@@ -48,7 +48,10 @@ export type NotaRapida = { id: string; texto: string };
 // Área de preparación (cocina, bebidas…)
 export type Area = { id: string; nombre: string };
 
-export type Carta = { categorias: Categoria[]; notasRapidas: NotaRapida[]; areas: Area[] };
+// Lo que hace falta para tomar un pedido por teléfono y decirle el total al cliente
+export type Reparto = { costoEnvioDefault: string; precioTaper: string; distritos: string[]; region: string | null };
+
+export type Carta = { categorias: Categoria[]; notasRapidas: NotaRapida[]; areas: Area[]; reparto: Reparto };
 
 // ---------- Pedidos y mesas ----------
 
@@ -83,6 +86,13 @@ export type Pedido = {
   mesaLiberada: boolean;
   mozo: { id: string; nombre: string };
   cliente: { nombre: string | null; telefono: string | null } | null;
+  direccionEntrega: string | null;
+  distritoEntrega: string | null;
+  referenciaEntrega: string | null;
+  repartidor: { id: string; nombre: string; telefono: string | null } | null;
+  // Pedidos por teléfono: cómo va a pagar. No es un pago registrado.
+  pagoPrevisto: PagoPrevisto | null;
+  motivoCancelacion: string | null;
   nota: string | null;
   subtotal: string;
   costoEnvio: string;
@@ -194,3 +204,26 @@ export type CierreDeCaja = {
   pedidosConPagoParcial: { id: string; numero: number; total: string; totalPagado: string; saldoPendiente: string }[];
   aviso: string | null;
 };
+
+// ---------- Delivery ----------
+
+export type MomentoPago = "ANTICIPADO" | "AL_RECIBIR";
+
+export type PagoPrevisto = {
+  momento: MomentoPago;
+  metodo: MetodoPago;
+  // Efectivo al recibir: con cuánto paga y el vuelto que debe llevar el motorizado
+  pagaCon: string | null;
+  vuelto: string | null;
+};
+
+export type ClienteGuardado = {
+  id: string;
+  telefono: string;
+  nombre: string | null;
+  direccion: string | null;
+  distrito: string | null;
+  referencia: string | null;
+};
+
+export type Repartidor = { id: string; nombre: string; telefono: string | null };

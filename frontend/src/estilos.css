@@ -269,6 +269,9 @@ html:has(dialog.hoja[open]) {
       overlay 150ms allow-discrete,
       display 150ms allow-discrete;
   }
+  .dialogo-amplio {
+    max-width: 72rem;
+  }
   .dialogo[open] {
     display: flex;
     flex-direction: column;

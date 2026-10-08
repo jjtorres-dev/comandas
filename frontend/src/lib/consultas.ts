@@ -1,6 +1,6 @@
 import { QueryClient, queryOptions } from "@tanstack/react-query";
 import { api, ErrorApi } from "./api";
-import type { Carta, Cobrado, Cuenta, Mesa, Pedido, Turno } from "./tipos";
+import type { Carta, Cobrado, Cuenta, Mesa, Pedido, Repartidor, Turno } from "./tipos";
 
 // Claves de TanStack Query. Los eventos de Socket.IO invalidan por estas raíces.
 export const claves = {
@@ -57,3 +57,15 @@ export const consultaCuenta = (pedidoId: string) =>
     queryKey: [...claves.pedidos, "cuenta", pedidoId] as const,
     queryFn: async ({ signal }) => (await api<{ cuenta: Cuenta }>(`/pedidos/${pedidoId}/cuenta`, { signal })).cuenta,
   });
+
+// Tablero de Delivery: pedidos por teléfono del día, incluidos los ya entregados y pagados
+export const consultaPorTelefono = queryOptions({
+  queryKey: [...claves.pedidos, "por-telefono"] as const,
+  queryFn: async ({ signal }) => (await api<{ pedidos: Pedido[] }>("/pedidos/por-telefono", { signal })).pedidos,
+});
+
+export const consultaRepartidores = queryOptions({
+  queryKey: ["repartidores"] as const,
+  queryFn: async ({ signal }) => (await api<{ repartidores: Repartidor[] }>("/repartidores", { signal })).repartidores,
+  staleTime: 5 * 60_000,
+});

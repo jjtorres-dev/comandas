@@ -10,7 +10,7 @@ import { emitirANegocio } from "../../realtime/socket";
 export const incluirCompleto = {
   mesa: { select: { id: true, nombre: true } },
   mozo: { select: { id: true, nombre: true } },
-  repartidor: { select: { id: true, nombre: true } },
+  repartidor: { select: { id: true, nombre: true, telefono: true } },
   // Un pago anulado no cuenta en ningún total
   pagos: { where: { anuladoEn: null }, select: { monto: true } },
   // En el orden en que se pidieron, ronda tras ronda
@@ -22,6 +22,9 @@ export type PedidoCompleto = Prisma.PedidoGetPayload<{ include: typeof incluirCo
 // Forma en que el pedido viaja por HTTP y por Socket.IO
 export function serializar(p: PedidoCompleto) {
   const totalPagado = sumar(p.pagos.map((pago) => pago.monto));
+  const saldo = Prisma.Decimal.max(0, p.total.minus(totalPagado));
+  // Vuelto que debe llevar el motorizado: solo si lo que entrega el cliente alcanza
+  const vuelto = p.pagaCon && p.pagaCon.greaterThanOrEqualTo(saldo) ? p.pagaCon.minus(saldo) : null;
 
   return {
     id: p.id,
@@ -34,6 +37,17 @@ export function serializar(p: PedidoCompleto) {
     cliente:
       p.nombreCliente || p.telefonoCliente ? { nombre: p.nombreCliente, telefono: p.telefonoCliente } : null,
     direccionEntrega: p.direccionEntrega,
+    distritoEntrega: p.distritoEntrega,
+    pagoPrevisto:
+      p.pagoMomento && p.pagoMetodo
+        ? {
+            momento: p.pagoMomento,
+            metodo: p.pagoMetodo,
+            pagaCon: p.pagaCon ? dinero(p.pagaCon) : null,
+            vuelto: vuelto ? dinero(vuelto) : null,
+          }
+        : null,
+    motivoCancelacion: p.motivoCancelacion,
     referenciaEntrega: p.referenciaEntrega,
     repartidor: p.repartidor,
     nota: p.nota,

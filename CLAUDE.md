@@ -89,13 +89,22 @@ Después, seguir `DESIGN.md`: los tokens están en `frontend/src/estilos.css`
   pantalla se hacen en céntimos enteros (`local/dinero.ts`); lo que vale es lo
   que responde el servidor. Las consultas de caja cuelgan de `claves.caja` y la
   cuenta y la nota de venta de `claves.pedidos`.
+- Delivery (`/local/delivery`): `paginas/local/Delivery.tsx` y
+  `paginas/local/delivery/` (`NuevoPedido`, `BuscadorDeCarta`, `Lineas`,
+  `PagoPrevisto`, `Tablero`, `Modificar`, `Cobrar`, `Rendicion`). Reutiliza las
+  líneas del mozo (`mozo/lineas.ts`), sus hojas de variantes, combos y notas
+  (`componentes/pedido/`) y el cobro de Caja (`FormularioCobro`). Aquí no hay
+  cola offline: "Enviar a cocina" espera la respuesta, con su `idCliente`. Los
+  textos de WhatsApp, el link de Maps y el pago previsto en palabras están en
+  `local/delivery.ts`.
 - Hojas inferiores: `HojaInferior` se ajusta al teclado (meta viewport con
   `interactive-widget=resizes-content` más `visualViewport`). Los avisos de
   sonner salen abajo, sobre la barra fija de cada pantalla, que publica su alto
   con `useEspacioAvisos`.
 - Pruebas de punta a punta: `npm run e2e` desde `frontend/` (Playwright;
   `e2e/mozo.spec.ts` a 412×915, `e2e/cocina.spec.ts`, que abre al mozo y a la
-  cocina a la vez, y `e2e/caja.spec.ts` con el turno de caja completo). **No tocan la base de desarrollo**: Playwright levanta su
+  cocina a la vez, `e2e/caja.spec.ts` con el turno de caja completo y `e2e/delivery.spec.ts` con
+  los pedidos por teléfono). **No tocan la base de desarrollo**: Playwright levanta su
   propio backend (`npm run e2e:servidor` en `backend/`, puerto 3100, base
   `comandas_e2e` con migraciones y seed en cada corrida) y su propio Vite
   (puerto 5183). Solo hace falta el contenedor de Postgres.

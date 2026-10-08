@@ -3,8 +3,10 @@ import { sesionDe } from "../../middlewares/auth";
 import {
   esquemaAgregarItems,
   esquemaCambiarEstado,
+  esquemaCancelarPedido,
   esquemaCargos,
   esquemaCrearPedido,
+  esquemaEntrega,
   esquemaEstadoPedido,
   esquemaFiltroActivos,
   esquemaParamsItem,
@@ -59,4 +61,19 @@ export async function cambiarEstadoPedido(req: Request, res: Response) {
   const { id } = esquemaParamsPedido.parse(req.params);
   const { estado } = esquemaEstadoPedido.parse(req.body);
   res.json({ pedido: await servicio.cambiarEstadoPedido(sesionDe(req), id, estado) });
+}
+
+export async function listarPorTelefono(req: Request, res: Response) {
+  res.json({ pedidos: await servicio.listarPorTelefono(sesionDe(req).negocioId) });
+}
+
+export async function actualizarEntrega(req: Request, res: Response) {
+  const { id } = esquemaParamsPedido.parse(req.params);
+  res.json({ pedido: await servicio.actualizarEntrega(sesionDe(req), id, esquemaEntrega.parse(req.body)) });
+}
+
+export async function cancelarPedido(req: Request, res: Response) {
+  const { id } = esquemaParamsPedido.parse(req.params);
+  const { motivo } = esquemaCancelarPedido.parse(req.body);
+  res.json({ pedido: await servicio.cancelarPedido(sesionDe(req), id, motivo) });
 }

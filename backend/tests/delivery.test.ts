@@ -74,6 +74,7 @@ describe("POST /api/pedidos — DELIVERY", () => {
       nombre: "Rosa",
       direccion: "Jr. Lima 123",
       referencia: "Portón verde",
+      distrito: "Tarapoto",
     });
     expect(enOtroNegocio.body).toEqual({ cliente: null });
     expect(desconocido.body).toEqual({ cliente: null });
@@ -366,7 +367,7 @@ describe("despacho de delivery", () => {
     const desdeOtroNegocio = await patch(await tokenDe(b, "cocina"), `${id}/repartidor`, { repartidorId: b.repartidor.id });
 
     expect(asignado.status).toBe(200);
-    expect(asignado.body.pedido.repartidor).toEqual({ id: a.repartidor.id, nombre: "Motorizado" });
+    expect(asignado.body.pedido.repartidor).toMatchObject({ id: a.repartidor.id, nombre: "Motorizado" });
     expect(enMesa.status).toBe(409);
     expect(enMesa.body.error.codigo).toBe("NO_ES_DELIVERY");
     expect([ajeno.status, desdeOtroNegocio.status]).toEqual([404, 404]);
@@ -413,5 +414,153 @@ describe("despacho de delivery", () => {
     expect(enCamino.status).toBe(409);
     expect(enCamino.body.error.codigo).toBe("NO_ES_DELIVERY");
     expect(entregado.body.pedido.estado).toBe("ENTREGADO");
+  });
+});
+
+describe("pedidos por teléfono: pago previsto, distrito y correcciones", () => {
+  const crearDelivery = (extra: object = {}) =>
+    crearPedido(cocina, { tipo: "DELIVERY", cliente: rosa, items: dosCevichesYGaseosa, ...extra });
+  const get = (token: string, ruta: string) => request(app).get(`/api/${ruta}`).set(conToken(token));
+
+  it("GET /carta trae los datos de reparto del negocio", async () => {
+    const res = await get(mozo, "carta");
+    expect(res.body.reparto).toEqual({ costoEnvioDefault: "3.00", precioTaper: "1.00", distritos: ["Tarapoto", "Morales"], region: "San Martín, Perú" });
+  });
+
+  it("guarda el pago previsto y calcula el vuelto que lleva el motorizado", async () => {
+    // 43 + 3 de envío + 2 tapers (las bebidas no llevan) = S/ 48
+    const res = await crearDelivery({ pagoPrevisto: { momento: "AL_RECIBIR", metodo: "EFECTIVO", pagaCon: 100 } });
+    expect(res.status).toBe(201);
+    expect(res.body.pedido).toMatchObject({
+      total: "48.00",
+      pagado: false,
+      totalPagado: "0.00",
+      pagoPrevisto: { momento: "AL_RECIBIR", metodo: "EFECTIVO", pagaCon: "100.00", vuelto: "52.00" },
+    });
+
+    // "Ya pagó" queda por confirmar: no es un pago, no entra a la caja
+    const yape = await crearPedido(cocina, {
+      tipo: "PARA_LLEVAR",
+      cliente: { telefono: "911222333", nombre: "Luis" },
+      items: dosCevichesYGaseosa,
+      pagoPrevisto: { momento: "ANTICIPADO", metodo: "YAPE" },
+    });
+    expect(yape.body.pedido).toMatchObject({ pagado: false, pagoPrevisto: { momento: "ANTICIPADO", metodo: "YAPE", pagaCon: null, vuelto: null } });
+    expect(await prisma.pago.count()).toBe(0);
+
+    // Si lo que entrega el cliente no alcanza, no hay vuelto que llevar
+    const corto = await crearDelivery({ pagoPrevisto: { momento: "AL_RECIBIR", metodo: "EFECTIVO", pagaCon: 20 } });
+    expect(corto.body.pedido.pagoPrevisto).toMatchObject({ pagaCon: "20.00", vuelto: null });
+
+    const invalidos = await Promise.all([
+      crearDelivery({ pagoPrevisto: { momento: "ANTICIPADO", metodo: "EFECTIVO" } }),
+      crearDelivery({ pagoPrevisto: { momento: "AL_RECIBIR", metodo: "YAPE", pagaCon: 50 } }),
+      crearDelivery({ pagoPrevisto: { momento: "DESPUES", metodo: "YAPE" } }),
+    ]);
+    expect(invalidos.map((r) => r.status)).toEqual([400, 400, 400]);
+  });
+
+  it("el distrito se copia al pedido y al cliente; por defecto es el primero del negocio", async () => {
+    const sinDistrito = await crearDelivery();
+    expect(sinDistrito.body.pedido.distritoEntrega).toBe("Tarapoto");
+
+    const morales = await crearDelivery({ cliente: { ...rosa, distrito: "Morales" } });
+    expect(morales.body.pedido.distritoEntrega).toBe("Morales");
+    expect((await buscarCliente(cocina, rosa.telefono)).body.cliente).toMatchObject({ distrito: "Morales", direccion: "Jr. Lima 123" });
+
+    const otro = await crearDelivery({ cliente: { ...rosa, distrito: "Lima" } });
+    expect(otro.status).toBe(400);
+    expect(otro.body.error).toMatchObject({ codigo: "SOLICITUD_INVALIDA", distritos: ["Tarapoto", "Morales"] });
+  });
+
+  it("GET /clientes/ultimo-pedido devuelve el último pedido no cancelado del cliente", async () => {
+    expect((await get(cocina, "clientes/ultimo-pedido?telefono=987654321")).body).toEqual({ pedido: null });
+
+    const primero = await crearDelivery();
+    const segundo = await crearDelivery({ items: [{ varianteId: a.v.pota18, cantidad: 1, notas: ["Ají aparte"] }] });
+    const res = await get(cocina, "clientes/ultimo-pedido?telefono=987654321");
+    expect(res.body.pedido).toMatchObject({ id: segundo.body.pedido.id, items: [{ varianteId: a.v.pota18, cantidad: 1, notas: ["Ají aparte"] }] });
+
+    // Cancelado el último, vuelve a valer el anterior; otro negocio no ve nada
+    await patch(cocina, `${segundo.body.pedido.id}/cancelar`, { motivo: "Se arrepintió" });
+    expect((await get(cocina, "clientes/ultimo-pedido?telefono=987654321")).body.pedido.id).toBe(primero.body.pedido.id);
+    expect((await get(await tokenDe(b, "cocina"), "clientes/ultimo-pedido?telefono=987654321")).body).toEqual({ pedido: null });
+  });
+
+  it("GET /pedidos/por-telefono lista deliveries y para llevar con teléfono, también los ya entregados y pagados", async () => {
+    const delivery = await crearDelivery();
+    const llevarConTelefono = await crearPedido(cocina, { tipo: "PARA_LLEVAR", cliente: { telefono: "911222333" }, items: dosCevichesYGaseosa });
+    await crearPedido(mozo, { tipo: "PARA_LLEVAR", cliente: { nombre: "Sin teléfono" }, items: dosCevichesYGaseosa });
+    await crearPedido(mozo, { mesaId: a.mesas[0].id, items: dosCevichesYGaseosa });
+    const cancelado = await crearDelivery();
+    await patch(cocina, `${cancelado.body.pedido.id}/cancelar`, { motivo: "Número equivocado" });
+
+    // El delivery se prepara, sale, se entrega y se cobra: sale de "activos" pero sigue en el tablero del día
+    const id = delivery.body.pedido.id as string;
+    await patch(cocina, `${id}/items/estado`, { itemIds: delivery.body.pedido.items.map((i: { id: string }) => i.id), estado: "LISTO" });
+    await patch(cocina, `${id}/estado`, { estado: "ENTREGADO" });
+    await request(app).post("/api/caja/abrir").set(conToken(cocina)).send({ montoInicial: 0 });
+    await request(app).post(`/api/pedidos/${id}/pagos`).set(conToken(cocina)).send({ pagos: [{ metodo: "EFECTIVO", monto: 48 }] });
+    const activos = (await get(cocina, "pedidos/activos")).body.pedidos as { id: string }[];
+    expect(activos.map((p) => p.id)).not.toContain(id);
+
+    const res = await get(cocina, "pedidos/por-telefono");
+    expect(res.status).toBe(200);
+    expect(res.body.pedidos.map((p: { id: string }) => p.id)).toEqual([id, llevarConTelefono.body.pedido.id]);
+    expect(res.body.pedidos[0]).toMatchObject({ estado: "ENTREGADO", pagado: true });
+    expect((await get(await tokenDe(b, "cocina"), "pedidos/por-telefono")).body.pedidos).toEqual([]);
+  });
+
+  it("PATCH /:id/entrega corrige dirección, distrito, referencia y pago previsto, y actualiza al cliente", async () => {
+    const pedido = (await crearDelivery({ pagoPrevisto: { momento: "ANTICIPADO", metodo: "YAPE" } })).body.pedido;
+
+    const res = await patch(cocina, `${pedido.id}/entrega`, {
+      direccion: "Jr. Nuevo 500",
+      distrito: "Morales",
+      referencia: "",
+      pagoPrevisto: { momento: "AL_RECIBIR", metodo: "EFECTIVO", pagaCon: 50 },
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.pedido).toMatchObject({
+      direccionEntrega: "Jr. Nuevo 500",
+      distritoEntrega: "Morales",
+      referenciaEntrega: null,
+      pagoPrevisto: { momento: "AL_RECIBIR", metodo: "EFECTIVO", pagaCon: "50.00", vuelto: "2.00" },
+    });
+    expect((await buscarCliente(cocina, rosa.telefono)).body.cliente).toMatchObject({ direccion: "Jr. Nuevo 500", distrito: "Morales", referencia: null });
+
+    // Pasar a Yape al recibir borra el "paga con"
+    const aYape = await patch(cocina, `${pedido.id}/entrega`, { pagoPrevisto: { momento: "AL_RECIBIR", metodo: "YAPE" } });
+    expect(aYape.body.pedido.pagoPrevisto).toEqual({ momento: "AL_RECIBIR", metodo: "YAPE", pagaCon: null, vuelto: null });
+
+    expect((await patch(cocina, `${pedido.id}/entrega`, {})).status).toBe(400);
+    expect((await patch(cocina, `${pedido.id}/entrega`, { distrito: "Lima" })).status).toBe(400);
+    expect((await patch(mozo, `${pedido.id}/entrega`, { direccion: "X" })).status).toBe(403);
+    const deMesa = await crearPedido(mozo, { mesaId: a.mesas[0].id, items: dosCevichesYGaseosa });
+    expect((await patch(cocina, `${deMesa.body.pedido.id}/entrega`, { direccion: "X" })).body.error.codigo).toBe("NO_ES_DELIVERY");
+  });
+
+  it("PATCH /:id/cancelar cancela el pedido con motivo; no si tiene pagos o si ya salió", async () => {
+    const pedido = (await crearDelivery()).body.pedido;
+    expect((await patch(cocina, `${pedido.id}/cancelar`, {})).status).toBe(400);
+    expect((await patch(mozo, `${pedido.id}/cancelar`, { motivo: "No soy caja" })).status).toBe(403);
+
+    const res = await patch(cocina, `${pedido.id}/cancelar`, { motivo: "El cliente ya no lo quiere" });
+    expect(res.status).toBe(200);
+    expect(res.body.pedido).toMatchObject({ estado: "CANCELADO", total: "3.00", motivoCancelacion: "El cliente ya no lo quiere" });
+    expect(res.body.pedido.items.every((i: { estado: string }) => i.estado === "CANCELADO")).toBe(true);
+    expect((await patch(cocina, `${pedido.id}/cancelar`, { motivo: "Otra vez" })).body.error.codigo).toBe("PEDIDO_CANCELADO");
+
+    // Con un pago confirmado hay que anularlo primero en Caja
+    await request(app).post("/api/caja/abrir").set(conToken(cocina)).send({ montoInicial: 0 });
+    const pagado = (await crearDelivery()).body.pedido;
+    await request(app).post(`/api/pedidos/${pagado.id}/pagos`).set(conToken(cocina)).send({ pagos: [{ metodo: "YAPE", monto: 48 }] });
+    expect((await patch(cocina, `${pagado.id}/cancelar`, { motivo: "Tarde" })).body.error.codigo).toBe("PEDIDO_CON_PAGOS");
+
+    // En camino ya no se cancela
+    const enCamino = (await crearDelivery()).body.pedido;
+    await patch(cocina, `${enCamino.id}/items/estado`, { itemIds: enCamino.items.map((i: { id: string }) => i.id), estado: "LISTO" });
+    await patch(cocina, `${enCamino.id}/estado`, { estado: "EN_CAMINO" });
+    expect((await patch(cocina, `${enCamino.id}/cancelar`, { motivo: "Tarde" })).body.error.codigo).toBe("PEDIDO_YA_SALIO");
   });
 });

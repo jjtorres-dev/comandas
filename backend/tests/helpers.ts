@@ -25,7 +25,9 @@ export async function limpiarBase() {
 // ("mozo", "cocina" y "admin", los mismos nombres en todos los negocios).
 // Envío por defecto S/ 3.00 y taper a S/ 1.00, como en el schema.
 export async function crearNegocio(nombre: string, codigo: string, logoUrl?: string) {
-  const negocio = await prisma.negocio.create({ data: { nombre, codigo, logoUrl } });
+  const negocio = await prisma.negocio.create({
+    data: { nombre, codigo, logoUrl, distritos: ["Tarapoto", "Morales"], region: "San Martín, Perú" },
+  });
   const negocioId = negocio.id;
 
   const cocina = await prisma.area.create({ data: { negocioId, nombre: "Cocina", orden: 1 } });

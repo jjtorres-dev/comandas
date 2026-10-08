@@ -8,11 +8,13 @@ type Props = {
   children: ReactNode;
   // Acciones al pie
   pie?: ReactNode;
+  // Para lo que necesita dos columnas (modificar un pedido)
+  amplio?: boolean;
 };
 
 // Diálogo centrado de /local (monitor con mouse y teclado). <dialog> modal: el
 // navegador atrapa el foco, bloquea lo de atrás y lo cierra con Escape.
-export function Dialogo({ abierto, alCerrar, titulo, children, pie }: Props) {
+export function Dialogo({ abierto, alCerrar, titulo, children, pie, amplio = false }: Props) {
   const dialogo = useRef<HTMLDialogElement>(null);
   const idTitulo = useId();
 
@@ -28,7 +30,7 @@ export function Dialogo({ abierto, alCerrar, titulo, children, pie }: Props) {
   }, [abierto]);
 
   return (
-    <dialog ref={dialogo} className="dialogo" aria-labelledby={idTitulo} onClose={() => abierto && alCerrar()}>
+    <dialog ref={dialogo} className={`dialogo ${amplio ? "dialogo-amplio" : ""}`} aria-labelledby={idTitulo} onClose={() => abierto && alCerrar()}>
       <header className="flex shrink-0 items-center gap-3 border-b-2 border-borde py-2 pr-2 pl-5">
         <h2 id={idTitulo} className="min-w-0 flex-1 text-2xl leading-tight font-bold text-balance text-tinta">
           {titulo}

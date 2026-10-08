@@ -13,6 +13,10 @@ type Props = {
   // Por qué no se puede cobrar todavía (sin conexión, nada marcado…), o null
   bloqueo: string | null;
   alCobrar: (pagos: PagoAEnviar[]) => Promise<void>;
+  // Delivery: el pago previsto llega ya elegido (método y con cuánto paga)
+  inicial?: { metodo: MetodoPago; recibido?: string };
+  // Dentro de un diálogo los atajos de teclado siguen activos
+  enDialogo?: boolean;
 };
 
 const ATAJOS = [50, 100, 200];
@@ -20,9 +24,11 @@ const sinPunto = (c: number) => (c / 100).toFixed(2).replace(/\.00$/, "");
 
 // El cobro en sí: método (ninguno viene elegido), monto recibido con el vuelto
 // enorme, y pago mixto. Teclado: E, Y, P, T eligen método y Enter cobra.
-export function FormularioCobro({ objetivo, bloqueo, alCobrar }: Props) {
+export function FormularioCobro({ objetivo, bloqueo, alCobrar, inicial, enDialogo = false }: Props) {
   const serie = useRef(1);
-  const [lineas, setLineas] = useState<Linea[]>([{ id: 0, metodo: null, monto: sinPunto(objetivo), recibido: "", referencia: "" }]);
+  const [lineas, setLineas] = useState<Linea[]>([
+    { id: 0, metodo: inicial?.metodo ?? null, monto: sinPunto(objetivo), recibido: inicial?.recibido ?? "", referencia: "" },
+  ]);
   // La línea sobre la que actúan las teclas de método
   const [activa, setActiva] = useState(0);
   const [cobrando, setCobrando] = useState(false);
@@ -155,7 +161,9 @@ export function FormularioCobro({ objetivo, bloqueo, alCobrar }: Props) {
   useEffect(() => {
     const alPulsar = (evento: KeyboardEvent) => {
       // Una tecla mantenida no cobra dos veces ni se salta la pantalla del vuelto
-      if (evento.repeat || evento.ctrlKey || evento.metaKey || evento.altKey || document.querySelector("dialog[open]")) return;
+      if (evento.repeat || evento.ctrlKey || evento.metaKey || evento.altKey) return;
+      // Con un diálogo abierto encima, las teclas son suyas (salvo que el cobro viva en ese diálogo)
+      if (!enDialogo && document.querySelector("dialog[open]")) return;
       const destino = evento.target as HTMLElement;
       const escribiendoTexto = destino.matches("textarea, input") && !destino.hasAttribute("data-monto");
       if (evento.key === "Enter") {
@@ -174,7 +182,7 @@ export function FormularioCobro({ objetivo, bloqueo, alCobrar }: Props) {
     };
     window.addEventListener("keydown", alPulsar);
     return () => window.removeEventListener("keydown", alPulsar);
-  }, []);
+  }, [enDialogo]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -348,7 +356,7 @@ export function FormularioCobro({ objetivo, bloqueo, alCobrar }: Props) {
 
       {/* El vuelto y Cobrar quedan pegados al borde de abajo de la pantalla (sobre la
           franja de caja): con un pago repartido el panel crece, y no se cobra a ciegas */}
-      <div className="sticky bottom-20 z-10 -mx-4 -mb-4 flex flex-col gap-3 rounded-b-panel bg-superficie px-4 pt-3 pb-4">
+      <div className={`flex flex-col gap-3 ${enDialogo ? "" : "sticky bottom-20 z-10 -mx-4 -mb-4 rounded-b-panel bg-superficie px-4 pt-3 pb-4"}`}>
       {/* El vuelto es el número que no puede salir mal: solo aparece cuando se
             sabe. Mientras falte plata, la misma caja lo dice en rojo. */}
         {efectivos.length > 0 && (

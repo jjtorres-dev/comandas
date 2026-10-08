@@ -449,9 +449,32 @@ a entregar después de cobrar (72 px, sobre `listo`).
 - **Franja del turno:** fija abajo, con los totales por método y "Efectivo
   esperado" destacado sobre `primario-suave`.
 
+### Delivery
+Pedidos por teléfono, en el monitor con teclado, mientras se atiende una
+llamada. Dos vistas: el tablero del día y "Nuevo pedido" a pantalla completa.
+
+- **Nuevo pedido:** tres columnas numeradas (1. Cliente, 2. ¿Qué pide?,
+  3. Resumen). El foco empieza en el celular. El buscador de la carta mide
+  64 px: se escribe, el primer resultado va resaltado con `primario-suave` y
+  borde `marino`, y Enter lo agrega. El total es lo más grande de la pantalla
+  (48 px): es lo que se le dice al cliente. "Enviar a cocina" queda fijo al
+  pie del resumen.
+- **Pago previsto:** dos opciones juntas ("Ya pagó" / "Paga al recibir"),
+  después el método; ninguna viene elegida. En efectivo, "¿Con cuánto paga?" y
+  el vuelto que lleva el motorizado sobre `listo-suave`.
+- **Tablero:** cuatro columnas (En cocina, Listo para salir, En camino,
+  Entregado) con su conteo; en celular, una a la vez con un selector arriba.
+  Cada tarjeta lleva la franja del tipo, el cliente, la dirección con su
+  distrito, el teléfono con "Llamar" y "WhatsApp", y el pago previsto siempre
+  con ícono y palabras: "Pagado" (`listo-suave`), "Yape por confirmar"
+  (`alerta-suave`) o "Cobrar S/ 46.50 · paga con S/ 50 · vuelto S/ 3.50"
+  (`fondo`). La acción que hace avanzar el pedido es la única rellena.
+- **Rendición:** franja `alerta-suave` con borde `tinta` sobre el tablero,
+  "Motorizado debe rendir S/ 92.50 (2 pedidos)".
+
 ### Diálogo
 Para una corrección o una confirmación en `/local` (ajustar, cambiar método,
-anular, cerrar caja): `<dialog>` modal centrado, borde `tinta` de 3 px, título,
+anular, cerrar caja, modificar un pedido por teléfono, en su versión ancha): `<dialog>` modal centrado, borde `tinta` de 3 px, título,
 botón de cerrar de 48 px y la acción al pie. Aparece en 150 ms.
 
 ### Teclado (caja)

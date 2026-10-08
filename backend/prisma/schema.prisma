@@ -45,6 +45,13 @@ enum EstadoItem {
   CANCELADO
 }
 
+// ANTICIPADO: el cliente dice que ya pagó (Yape o Plin), queda por confirmar.
+// AL_RECIBIR: paga cuando le llega el pedido (contraentrega) o cuando lo recoge.
+enum MomentoPago {
+  ANTICIPADO
+  AL_RECIBIR
+}
+
 enum MetodoPago {
   EFECTIVO
   YAPE
@@ -69,6 +76,11 @@ model Negocio {
   // Valores sugeridos al crear un pedido; lo cobrado se copia al Pedido
   costoEnvioDefault Decimal @default(3.00) @db.Decimal(10, 2)
   precioTaper       Decimal @default(1.00) @db.Decimal(10, 2) // por cada taper
+
+  // Reparto: distritos a los que llega el delivery (el primero es el de por
+  // defecto) y la región que completa la dirección al buscarla en un mapa
+  distritos String[] // ["Tarapoto", "Morales", "La Banda de Shilcayo"]
+  region    String? // "San Martín, Perú"
 
   usuarios     Usuario[]
   areas        Area[]
@@ -218,6 +230,7 @@ model Cliente {
   telefono   String
   nombre     String?
   direccion  String?
+  distrito   String?
   referencia String?
   creadoEn   DateTime @default(now())
 
@@ -256,6 +269,7 @@ model Pedido {
   // Datos de entrega copiados al momento del pedido (si el cliente
   // cambia de dirección después, el historial no se altera)
   direccionEntrega  String?
+  distritoEntrega   String?
   referenciaEntrega String?
   nombreCliente     String? // también para llevar: "pedido de Juan", sin teléfono
   telefonoCliente   String?
@@ -276,6 +290,15 @@ model Pedido {
   // true si el pedido de mesa ya estuvo pagado y su cuenta se reabrió (se anuló
   // un pago): sigue debiendo, pero nunca vuelve a ocupar la mesa
   mesaLiberada Boolean @default(false)
+
+  // Pago previsto (pedidos por teléfono): lo que el motorizado necesita saber.
+  // No es un pago: el cobro entra a la caja cuando se confirma o se cobra.
+  pagoMomento MomentoPago?
+  pagoMetodo  MetodoPago?
+  pagaCon     Decimal?     @db.Decimal(10, 2) // efectivo al recibir: con cuánto paga
+
+  // Por qué se canceló el pedido entero (cuando se cancela desde Delivery)
+  motivoCancelacion String?
 
   // Lo genera el celular del mozo: si se cae la señal y reintenta,
   // el servidor no crea el pedido dos veces
