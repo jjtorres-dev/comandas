@@ -139,10 +139,12 @@ test("el mozo toma un pedido, agrega una ronda sin red y recibe el aviso de list
     await expect(page.getByText("Ronda nueva")).toBeVisible();
     await boton(page, "Bebidas").click();
     await boton(page, /^Gaseosa Personal/).click();
+    await expect(page.getByRole("link", { name: /Ver pedido/ })).toContainText("1 bebida");
     await page.getByRole("link", { name: /Ver pedido/ }).click();
 
     await context.setOffline(true);
-    await boton(page, "Enviar ronda").click();
+    // La ronda es solo una gaseosa, que no pasa por cocina: se anota en la cuenta
+    await boton(page, "Anotar en la cuenta").click();
     await expect(page).toHaveURL(/\/mozo\/mesas/);
     await expect(boton(page, /1 pedido por enviar/)).toBeVisible();
     await expect(baldosa).toContainText("Ronda esperando conexión");
@@ -185,7 +187,8 @@ test("el mozo toma un pedido, agrega una ronda sin red y recibe el aviso de list
     await expect(page.getByText(`${mesa.nombre}: pedido listo`)).toBeVisible();
     expect(await page.evaluate(() => (window as unknown as { vibraciones?: unknown[] }).vibraciones?.length ?? 0)).toBe(1);
     const tarjeta = page.getByRole("article").filter({ hasText: mesa.nombre });
-    await expect(tarjeta).toContainText("5 platos listos");
+    // La gaseosa no pasa por cocina: no cuenta entre los platos listos
+    await expect(tarjeta).toContainText("4 platos listos");
   });
 
   await test.step("marca Entregado", async () => {

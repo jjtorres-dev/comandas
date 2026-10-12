@@ -88,6 +88,13 @@ export async function moverMesa(req: Request, res: Response) {
   res.status(204).end();
 }
 
+// ---------- Áreas de preparación ----------
+
+export async function editarArea(req: Request, res: Response) {
+  await local.editarArea(negocioDe(req), idDe(req), e.esquemaEditarArea.parse(req.body));
+  res.status(204).end();
+}
+
 // ---------- Motorizados ----------
 
 export async function verRepartidores(req: Request, res: Response) {

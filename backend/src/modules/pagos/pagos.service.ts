@@ -31,7 +31,7 @@ type PagoDeCuenta = { grupoId: string; itemIds: string[]; unidades: Prisma.JsonV
 // (pago mixto) comparten grupo y cuentan una sola vez; un grupo deja de contar
 // cuando todos sus pagos están anulados. Los pagos antiguos (sin `unidades`)
 // cubren el item entero.
-function unidadesPagadas(items: { id: string; cantidad: number }[], pagos: PagoDeCuenta[]): Map<string, number> {
+export function unidadesPagadas(items: { id: string; cantidad: number }[], pagos: PagoDeCuenta[]): Map<string, number> {
   const grupos = new Map<string, PagoDeCuenta>();
   for (const pago of pagos) {
     if (pago.anuladoEn === null && !grupos.has(pago.grupoId)) grupos.set(pago.grupoId, pago);

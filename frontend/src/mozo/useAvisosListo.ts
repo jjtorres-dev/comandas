@@ -11,7 +11,14 @@ import { avisarListo, prepararSonido } from "./avisos";
 export const nombreDePedido = (pedido: Pedido): string =>
   (pedido.mesa ? `${pedido.mesa.nombre}${pedido.mesaLiberada ? " · cuenta reabierta" : ""}` : null) ?? (pedido.tipo === "PARA_LLEVAR" ? `Para llevar #${pedido.numero}` : `Delivery #${pedido.numero}`);
 
-export const listosDe = (pedido: Pedido) => pedido.items.filter((i) => i.estado === "LISTO");
+// Los platos que la cocina dejó listos. Lo que no pasa por cocina (una bebida
+// de un para llevar nace LISTO) no es un aviso: el mozo ya lo sabe.
+export const listosDe = (pedido: Pedido) => pedido.items.filter((i) => i.estado === "LISTO" && i.pasaPorCocina);
+
+// Lo que marca "Entregado": los platos listos y, con ellos, las bebidas que
+// esperaban en la bolsa. Un para llevar de solo bebidas se entrega sin cocina.
+export const porEntregarDe = (pedido: Pedido) =>
+  listosDe(pedido).length > 0 || pedido.estado === "LISTO" ? pedido.items.filter((i) => i.estado === "LISTO") : [];
 
 // Vibra, suena y avisa cuando platos de MIS pedidos pasan a LISTO. Compara
 // cada respuesta con la anterior: no avisa por lo que ya estaba listo al

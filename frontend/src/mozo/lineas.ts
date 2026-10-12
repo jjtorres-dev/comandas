@@ -1,6 +1,6 @@
 // Las líneas de un pedido que todavía no se envía. Todo son funciones puras:
 // reciben la lista y devuelven una nueva.
-import type { OpcionCombo, Producto, Variante } from "../lib/tipos";
+import type { Carta, OpcionCombo, Producto, Variante } from "../lib/tipos";
 import { nuevoId } from "./uuid";
 
 export type Linea = {
@@ -33,7 +33,7 @@ export type NotasCombo = Record<string, NotasDePlato>;
 
 export const TODO_EL_COMBO = "todo";
 
-const MAXIMO = 99;
+export const MAXIMO = 99;
 
 export function lineaDe(producto: Producto, variante: Variante, componentes: OpcionCombo[] = []): Linea {
   return {
@@ -69,6 +69,26 @@ export function cambiarCantidad(lineas: Linea[], id: string, delta: number): Lin
   return lineas
     .map((l) => (l.id === id ? { ...l, cantidad: Math.min(MAXIMO, l.cantidad + delta) } : l))
     .filter((l) => l.cantidad > 0);
+}
+
+// La cantidad escrita con el teclado numérico. 0 quita la línea.
+export function ponerCantidad(lineas: Linea[], id: string, cantidad: number): Linea[] {
+  return lineas.map((l) => (l.id === id ? { ...l, cantidad: Math.min(MAXIMO, Math.max(0, cantidad)) } : l)).filter((l) => l.cantidad > 0);
+}
+
+// Lo mismo desde la carta, donde un producto puede estar en varias líneas
+// (con y sin nota): lo que sube va a la línea sin notas (o a la última), y lo
+// que baja sale como con el "−"
+export function ponerCantidadDeProducto(lineas: Linea[], productoId: string, cantidad: number): Linea[] {
+  const delProducto = lineas.filter((l) => l.productoId === productoId);
+  const diferencia = Math.min(MAXIMO, Math.max(0, cantidad)) - delProducto.reduce((suma, l) => suma + l.cantidad, 0);
+  if (diferencia > 0) {
+    const objetivo = delProducto.findLast((l) => l.notas.length === 0) ?? delProducto.at(-1);
+    return objetivo ? cambiarCantidad(lineas, objetivo.id, diferencia) : lineas;
+  }
+  let nuevas = lineas;
+  for (let i = 0; i < -diferencia; i++) nuevas = quitarUno(nuevas, productoId);
+  return nuevas;
 }
 
 // El "−" de la carta: quita una unidad del producto, primero de la línea sin
@@ -125,6 +145,18 @@ export const montoTotal = (lineas: Linea[]): number => lineas.reduce((suma, l) =
 
 export const cantidadDe = (lineas: Linea[], productoId: string): number =>
   lineas.reduce((suma, l) => suma + (l.productoId === productoId ? l.cantidad : 0), 0);
+
+// ¿Algo de lo anotado pasa por cocina? Si todo lo saca el mozo (solo bebidas),
+// el pedido no "se envía a cocina": se anota en la cuenta. Sin la carta, o con
+// un plato que ya no está en ella, se supone que sí.
+export function vaACocina(lineas: Linea[], carta: Carta | undefined): boolean {
+  if (!carta) return true;
+  const productos = carta.categorias.flatMap((c) => c.productos);
+  return lineas.some((l) => {
+    const areaId = productos.find((p) => p.id === l.productoId)?.areaId;
+    return carta.areas.find((a) => a.id === areaId)?.pasaPorCocina ?? true;
+  });
+}
 
 // El formato que espera POST /pedidos y POST /pedidos/:id/items
 export const comoItems = (lineas: Linea[]) =>

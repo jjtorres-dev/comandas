@@ -42,10 +42,12 @@ export type Comanda = {
   cancelada: boolean;
 };
 
-// listoEn: cuándo quedó listo lo último de ese pedido
-export type Listo = { pedido: Pedido; items: ItemPedido[]; listoEn: string };
+// listoEn: cuándo quedó listo lo último de ese pedido. `conEllos` es lo que no
+// pasó por cocina y espera para salir con los platos (las bebidas de un para
+// llevar): se entrega junto con ellos.
+export type Listo = { pedido: Pedido; items: ItemPedido[]; conEllos: ItemPedido[]; listoEn: string };
 
-const SIN_AREA: Area = { id: "", nombre: "Otros" };
+const SIN_AREA: Area = { id: "", nombre: "Otros", pasaPorCocina: true };
 
 const masAntiguo = (items: ItemPedido[]) => items.reduce((min, i) => (i.creadoEn < min ? i.creadoEn : min), items[0].creadoEn);
 
@@ -61,9 +63,12 @@ export function armarPanel(
   const listos: Listo[] = [];
 
   for (const pedido of pedidos) {
-    // El número de ronda sale del pedido completo, no de lo filtrado
-    const idsDeRonda = [...new Set(pedido.items.map((i) => i.idRonda))];
-    const visibles = pedido.items.filter(
+    // Lo que no pasa por cocina (las bebidas que saca el mozo) no existe para
+    // el panel: ni se muestra, ni suena, ni cuenta como ronda
+    const deCocina = pedido.items.filter((i) => i.pasaPorCocina);
+    // El número de ronda sale de todo lo que va a cocina, no de lo filtrado por área
+    const idsDeRonda = [...new Set(deCocina.map((i) => i.idRonda))];
+    const visibles = deCocina.filter(
       (i) => (i.estado !== "CANCELADO" || tachados.has(i.id)) && (areaId === null || i.areaId === areaId),
     );
     const pendientes = visibles.filter(porHacer);
@@ -74,7 +79,9 @@ export function armarPanel(
       // Un delivery que ya salió no se puede "deshacer" desde la cocina
       if (items.length > 0 && pedido.estado !== "EN_CAMINO") {
         const horas = items.map((i) => i.listoEn ?? i.creadoEn);
-        listos.push({ pedido, items, listoEn: horas.reduce((max, h) => (h > max ? h : max)) });
+        // Mientras quede algo por preparar en otra área, las bebidas siguen esperando
+        const conEllos = deCocina.some(porHacer) ? [] : pedido.items.filter((i) => !i.pasaPorCocina && i.estado === "LISTO");
+        listos.push({ pedido, items, conEllos, listoEn: horas.reduce((max, h) => (h > max ? h : max)) });
       }
       continue;
     }

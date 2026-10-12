@@ -12,8 +12,18 @@ const ESTADOS: Record<EstadoPedido, { texto: string; icono: Icon; clases: string
   CANCELADO: { texto: "Cancelado", icono: XIcon, clases: "bg-peligro-suave text-peligro" },
 };
 
-export function PildoraEstado({ estado }: { estado: EstadoPedido }) {
-  const { texto, icono: Icono, clases } = ESTADOS[estado];
+// Con cantidad: "1 listo", "2 pendientes" (el detalle de cocina en la cuenta de la mesa)
+const CONTADOS: Partial<Record<EstadoPedido, [uno: string, varios: string]>> = {
+  PENDIENTE: ["pendiente", "pendientes"],
+  PREPARANDO: ["preparando", "preparando"],
+  LISTO: ["listo", "listos"],
+  ENTREGADO: ["entregado", "entregados"],
+};
+
+export function PildoraEstado({ estado, cantidad }: { estado: EstadoPedido; cantidad?: number }) {
+  const { icono: Icono, clases } = ESTADOS[estado];
+  const contado = cantidad === undefined ? undefined : CONTADOS[estado];
+  const texto = contado ? `${cantidad} ${contado[cantidad === 1 ? 0 : 1]}` : ESTADOS[estado].texto;
   const cambio = useCambio(estado);
   return (
     // La clave reinicia la animación: el estado "llega" una sola vez al cambiar

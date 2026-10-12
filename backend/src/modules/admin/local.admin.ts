@@ -52,6 +52,17 @@ export async function moverMesa(negocioId: string, id: string, direccion: "subir
   avisarCambio(negocioId);
 }
 
+// ---------- Áreas de preparación ----------
+
+// Si lo de un área pasa por cocina o lo saca el mozo (bebidas). Vale para los
+// pedidos que se tomen desde ahora: cada item guarda su propia copia.
+export async function editarArea(negocioId: string, id: string, datos: { pasaPorCocina: boolean }) {
+  const area = await prisma.area.findFirst({ where: { id, negocioId } });
+  if (!area) throw noEncontrado("Esa área no existe");
+  await prisma.area.update({ where: { id }, data: datos });
+  avisarCambio(negocioId);
+}
+
 // ---------- Motorizados ----------
 
 export async function listarRepartidores(negocioId: string) {

@@ -31,6 +31,8 @@ rutasAdmin.patch("/mesas/:id", controlador.editarMesa);
 rutasAdmin.delete("/mesas/:id", controlador.eliminarMesa);
 rutasAdmin.post("/mesas/:id/mover", controlador.moverMesa);
 
+rutasAdmin.patch("/areas/:id", controlador.editarArea);
+
 rutasAdmin.get("/repartidores", controlador.verRepartidores);
 rutasAdmin.post("/repartidores", controlador.crearRepartidor);
 rutasAdmin.patch("/repartidores/:id", controlador.editarRepartidor);

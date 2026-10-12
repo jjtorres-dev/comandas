@@ -120,7 +120,9 @@ Lo devuelven todos los endpoints que crean o modifican un pedido, `GET
       "orden": 2,
       "idRonda": "…",
       "creadoEn": "2026-10-07T15:39:12.123Z",
-      "listoEn": null
+      "listoEn": null,
+      "entregadoEn": null,
+      "pasaPorCocina": true
     }
   ]
 }
@@ -148,10 +150,14 @@ Lo devuelven todos los endpoints que crean o modifican un pedido, `GET
 | `items[].nombreProducto` | `"Producto"`, o `"Producto — Variante"` si la variante no es "Única". Copia del momento del pedido, igual que `precioUnitario` |
 | `items[].componentes` | Solo combos: nombres de los platos elegidos. `[]` en el resto |
 | `items[].listoEn` | Cuándo se marcó `LISTO`, o `null` si todavía no. Vuelve a `null` si el item regresa a `PENDIENTE` o `PREPARANDO`, y se conserva al pasar a `ENTREGADO` (o al deshacer esa entrega). El panel de cocina ordena "recién listos" con este dato |
+| `items[].entregadoEn` | Cuándo pasó a `ENTREGADO`, o `null`. Vuelve a `null` si la entrega se deshace |
+| `items[].pasaPorCocina` | Copia de `pasaPorCocina` del área del producto al momento de pedirlo. `false`: lo saca el mozo (bebidas), ver [Lo que no pasa por cocina](#lo-que-no-pasa-por-cocina). Cambiar el área después no altera los items ya pedidos |
 | `items[].idRonda` | Los items con el mismo `idRonda` se pidieron juntos. La primera ronda lleva el `idCliente` del pedido |
 
 **Estado del pedido.** Se recalcula solo a partir de sus items, sin contar los
-cancelados:
+cancelados. Mientras el pedido tenga algún item que pasa por cocina, **solo
+cuentan esos** (las bebidas ya servidas no lo dejan "a medias"); si ninguno pasa
+por cocina, cuentan todos. `ENTREGADO` exige siempre que estén entregados todos:
 
 | Items (no cancelados) | Estado del pedido |
 |---|---|
@@ -163,6 +169,31 @@ cancelados:
 | Pendientes mezclados con listos o entregados (ronda nueva) | `PREPARANDO` |
 
 `EN_CAMINO` solo se alcanza con `PATCH /pedidos/:id/estado`.
+
+#### Lo que no pasa por cocina
+
+Cada área de preparación tiene `pasaPorCocina` (ver [Carta](#carta); lo cambia el
+dueño con `PATCH /admin/areas/:id`). Los items de un área con `pasaPorCocina:
+false` los saca el mozo, así que al crear el pedido o agregar la ronda **nacen
+ya servidos**:
+
+| Tipo de pedido | Estado inicial del item | |
+|---|---|---|
+| `MESA` | `ENTREGADO`, con `listoEn` y `entregadoEn` | Ya están en la mesa |
+| `PARA_LLEVAR`, `DELIVERY` | `LISTO`, con `listoEn` | Falta meterlos en la bolsa: se entregan con el pedido |
+
+Consecuencias:
+
+- No son trabajo de cocina: el panel los deja fuera filtrando
+  `items[].pasaPorCocina`, no suenan y no cuentan en el tiempo de cocina de los
+  reportes.
+- Un pedido de mesa con solo bebidas nace `ENTREGADO` (y sigue activo y
+  ocupando la mesa hasta que se paga); un delivery o para llevar con solo
+  bebidas nace `LISTO`. Una ronda de solo bebidas no cambia el estado del pedido.
+- Están en la cuenta y en el total desde el primer momento. **Cobrar no depende
+  del estado**: `POST /pedidos/:id/pagos` no exige que nada esté `LISTO`.
+- Deshacer la entrega de un pedido de mesa (`PATCH /pedidos/:id/estado`) no los
+  toca: siguen `ENTREGADO`.
 
 **Tapers** (solo `DELIVERY` y `PARA_LLEVAR`). Por defecto `cantidadTapers` es la
 suma de `cantidad × tapers del producto` de los items no cancelados, y se
@@ -350,7 +381,7 @@ lleva en su código. El dueño los cambia desde [Administración](#administraci�
     }
   ],
   "notasRapidas": [{ "id": "…", "texto": "Sin cebolla" }],
-  "areas": [{ "id": "…", "nombre": "Cocina" }, { "id": "…", "nombre": "Bebidas" }],
+  "areas": [{ "id": "…", "nombre": "Cocina", "pasaPorCocina": true }, { "id": "…", "nombre": "Bebidas", "pasaPorCocina": false }],
   "reparto": { "costoEnvioDefault": "3.00", "precioTaper": "1.00", "distritos": ["Tarapoto", "Morales", "La Banda de Shilcayo"], "region": "San Martín, Perú" },
   "cocina": { "tardaMin": 15, "muyTardeMin": 25 }
 }
@@ -365,7 +396,7 @@ lleva en su código. El dueño los cambia desde [Administración](#administraci�
 | `notasRapidas` | Botones de texto para las notas de un item |
 | `reparto` | Para tomar un pedido por teléfono y decirle el total al cliente: envío por defecto, precio de cada taper, distritos de reparto (el primero es el de por defecto) y la región que completa la dirección al buscarla en un mapa (`dirección, distrito, región`). `distritos` puede venir vacío y `region` en `null` |
 | `cocina` | Minutos desde que entró una comanda a partir de los cuales el panel de cocina la marca como que tarda (ámbar) o va muy tarde (rojo). Los fija el dueño |
-| `areas` | Áreas de preparación activas, en su orden: `[{ id, nombre }]`. Es el `areaId` de cada producto y de cada item de un pedido; el panel de cocina agrupa y filtra por ellas |
+| `areas` | Áreas de preparación activas, en su orden: `[{ id, nombre, pasaPorCocina }]`. Es el `areaId` de cada producto y de cada item de un pedido; el panel de cocina agrupa y filtra por ellas. Lo de un área con `pasaPorCocina: false` lo saca el mozo y no va al panel (ver [Lo que no pasa por cocina](#lo-que-no-pasa-por-cocina)) |
 
 ---
 
@@ -484,7 +515,9 @@ Crea un pedido con su primera ronda. **Roles**: `MOZO`, `LOCAL`, `ADMIN`.
 | `distrito` | texto ≤ 100 | Solo `DELIVERY`. Uno de `reparto.distritos` de la carta. Si falta, se usa el primero |
 | `referencia` | texto ≤ 200 | Opcional |
 
-Precios y nombres se toman siempre de la base de datos.
+Precios y nombres se toman siempre de la base de datos. Los items de un área
+que no pasa por cocina nacen `ENTREGADO` (mesa) o `LISTO` (para llevar y
+delivery): ver [Lo que no pasa por cocina](#lo-que-no-pasa-por-cocina).
 
 **Ejemplo (delivery)**
 
@@ -535,7 +568,8 @@ como ronda (ver `MESA_OCUPADA`) no pierda su nota general. Tras varias rondas co
 nota, `pedido.nota` puede superar los 500 caracteres.
 
 Los items nuevos quedan al final de la comanda. Recalcula totales, estado y, en
-delivery / para llevar con tapers automáticos, los tapers.
+delivery / para llevar con tapers automáticos, los tapers. Lo que no pasa por
+cocina entra ya servido, igual que al crear el pedido.
 
 **201** `{ "pedido": Pedido }` — ronda agregada. Emite `pedido:actualizado`.
 **200** `{ "pedido": Pedido }` — esa ronda ya había entrado (reintento); no emite evento.
@@ -599,8 +633,32 @@ Cambia el estado de varios items a la vez. **Roles**: `MOZO`, `LOCAL`, `ADMIN`.
 
 ### `PATCH /api/pedidos/:id/items/:itemId/cancelar`
 
-Cancela un item. Sin body. **Roles**: `MOZO`, `LOCAL`, `ADMIN`; si el item ya
-no está `PENDIENTE`, solo `ADMIN`.
+Cancela un item, o solo algunas de sus unidades. **Roles**: `MOZO`, `LOCAL`,
+`ADMIN`, según el item:
+
+| Item | Quién lo cancela |
+|---|---|
+| Pasa por cocina y sigue `PENDIENTE` | Cualquiera de los tres |
+| Pasa por cocina y ya está `PREPARANDO`, `LISTO` o `ENTREGADO` | Solo `ADMIN` |
+| No pasa por cocina (`pasaPorCocina: false`), en cualquier estado | Cualquiera de los tres: el mozo devuelve la bebida |
+
+**Body** — opcional; sin body se cancela el item entero:
+
+| Campo | Tipo | |
+|---|---|---|
+| `cantidad` | entero 1–99 | Opcional. Cuántas unidades cancelar. Si falta o es igual a la cantidad del item, se cancela entero |
+
+**Cancelación parcial.** Con `cantidad` menor que la del item, el item **se
+divide**: el original conserva su `id` (y los pagos que lo cubren) con las
+unidades que quedan, y las canceladas pasan a un item nuevo, `CANCELADO`, con la
+misma ronda (`idRonda`), el mismo `orden` y las mismas notas. De un
+`6× Cerveza Pilsen` al que se le quita 1 quedan `5×` vivo y `1×` cancelado.
+
+Nunca se cancelan unidades ya cobradas en una cuenta dividida: como máximo, las
+que siguen sin pagar.
+
+Queda registrado quién canceló y cuándo; el dueño lo ve en `cancelaciones` de
+[`GET /admin/reportes`](#get-apiadminreportesdesdeaaaa-mm-ddhastaaaaa-mm-dd).
 
 Recalcula totales, estado y tapers automáticos. Si era el último item vivo, el
 pedido queda `CANCELADO` (y libera la mesa).
@@ -611,10 +669,12 @@ pedido queda `CANCELADO` (y libera la mesa).
 
 | HTTP | `codigo` | Cuándo | Extra |
 |---|---|---|---|
-| 403 | `SIN_PERMISO` | El item ya está en preparación, listo o entregado, y quien cancela no es `ADMIN` | |
+| 400 | `DATOS_INVALIDOS` | `cantidad` no es un entero de 1 a 99 | `detalles` |
+| 400 | `SOLICITUD_INVALIDA` | `cantidad` mayor que las unidades del item | |
+| 403 | `SIN_PERMISO` | El item pasa por cocina, ya está en preparación, listo o entregado, y quien cancela no es `ADMIN` | |
 | 404 | `NO_ENCONTRADO` | El pedido o el item no existen | |
 | 409 | `ITEM_CANCELADO` | Ya estaba cancelado | |
-| 409 | `ITEM_PAGADO` | El item ya fue cobrado en una cuenta dividida | |
+| 409 | `ITEM_PAGADO` | El item ya fue cobrado en una cuenta dividida, o se piden más unidades de las que siguen sin cobrar | |
 | 409 | `PEDIDO_PAGADO` | El pedido ya está pagado | |
 | 409 | `PEDIDO_CANCELADO` | El pedido está cancelado | |
 | 409 | `TOTAL_MENOR_A_LO_PAGADO` | Al cancelar, el total quedaría por debajo de lo ya cobrado | `totalPagado` |
@@ -1104,7 +1164,7 @@ La carta entera, con lo inactivo.
 
 ```json
 {
-  "areas": [{ "id": "…", "nombre": "Cocina" }],
+  "areas": [{ "id": "…", "nombre": "Cocina", "pasaPorCocina": true }],
   "categorias": [
     {
       "id": "…", "nombre": "Frituras", "activo": true, "eliminable": false,
@@ -1210,6 +1270,18 @@ Body `{ "password": "…" }`. 204.
 | 409 | `ES_TU_USUARIO` | El dueño intenta quitarse el rol `ADMIN` o desactivarse |
 | 409 | `ULTIMO_ADMIN` | El cambio dejaría al negocio sin ningún `ADMIN` activo |
 
+### Áreas de preparación
+
+#### `PATCH /api/admin/areas/:id`
+
+Si lo de un área pasa por cocina o lo saca el mozo. Body
+`{ "pasaPorCocina": false }` (obligatorio). Responde 204; 404 si el área no es
+de este negocio.
+
+Vale para lo que se pida desde ese momento: cada item guarda su propia copia
+(`items[].pasaPorCocina`), así que los pedidos en curso no cambian. Las áreas
+vienen en `GET /admin/carta` y en `GET /carta`.
+
 ### Mesas, motorizados y notas rápidas
 
 | Método | Ruta | Body | Respuesta |
@@ -1293,6 +1365,9 @@ como máximo. **400** si falta una fecha o el rango está al revés.
   "turnos": [],
   "correcciones": [
     { "id": "…", "tipo": "ANULACION", "detalle": { "motivo": "Se cobró dos veces", "metodo": "TARJETA", "monto": "13.00" }, "creadoEn": "…", "usuario": "Diana", "monto": "13.00", "pedido": { "id": "…", "numero": 7 } }
+  ],
+  "cancelaciones": [
+    { "id": "…", "nombreProducto": "Cerveza Pilsen", "cantidad": 1, "monto": "9.00", "canceladoEn": "…", "usuario": "Soger", "pasaPorCocina": false, "yaEntregado": true, "pedido": { "id": "…", "numero": 12, "tipo": "MESA", "mesa": "Mesa 3" } }
   ]
 }
 ```
@@ -1304,9 +1379,10 @@ como máximo. **400** si falta una fecha o el rango está al revés.
 | `pedidosTomados` | Pedidos creados en esos días, sin los cancelados |
 | `platos` | Los 10 más pedidos en esos días (sin los cancelados), por unidades; `total` es `cantidad × precio` |
 | `porHora` | Siempre 24 filas (0 a 23, hora del negocio): pedidos tomados en esa hora |
-| `cocina` | Minutos promedio desde que se pide un plato hasta que se marca listo, en general y por área. `promedioMin` es `null` si no hay platos listos |
+| `cocina` | Minutos promedio desde que se pide un plato hasta que se marca listo, en general y por área. `promedioMin` es `null` si no hay platos listos. No cuenta lo que no pasa por cocina (nace listo) |
 | `turnos` | Los [turnos de caja](#turno-de-caja) abiertos en esos días, del más reciente al más antiguo, con su `diferencia` al cierre |
 | `correcciones` | Cada cambio de método (`"METODO"`, con `detalle.antes` y `detalle.despues`) o anulación (`"ANULACION"`, con `detalle.motivo`) hecha en esos días |
+| `cancelaciones` | Cada item (o grupo de unidades) quitado de un pedido con `PATCH /pedidos/:id/items/:itemId/cancelar` en esos días, del más reciente al más antiguo: qué, cuántas unidades, su `monto` (`cantidad × precio`), quién (`usuario`, su nombre) y cuándo. `yaEntregado` es `true` si ya estaba entregado al quitarlo (una bebida que volvió a la refrigeradora). `pedido.mesa` es el nombre de la mesa o `null`. No incluye los pedidos cancelados enteros, que guardan su `motivoCancelacion` |
 
 ---
 
@@ -1348,7 +1424,8 @@ Notas para el frontend:
 - El payload es siempre el objeto completo: basta con reemplazar el pedido (por
   `id`) o el turno en el estado local.
 - `pedido:actualizado` trae **todos** los items aunque el panel esté filtrado por
-  área; filtrar por `items[].areaId` en el cliente.
+  área; filtrar por `items[].areaId` en el cliente. El panel de cocina deja fuera
+  además los que tienen `pasaPorCocina: false`.
 - Un pedido deja de estar "activo" cuando `estado` es `CANCELADO`, o cuando es
   `ENTREGADO` y además `pagado`.
 - Las mesas no tienen evento propio: una mesa cambia con los pedidos de tipo
@@ -1379,7 +1456,7 @@ Notas para el frontend:
 | GET | `/api/pedidos/por-telefono` | cualquiera | |
 | POST | `/api/pedidos/:id/items` | MOZO, LOCAL, ADMIN | `pedido:actualizado` |
 | PATCH | `/api/pedidos/:id/items/estado` | MOZO, LOCAL, ADMIN | `pedido:actualizado` |
-| PATCH | `/api/pedidos/:id/items/:itemId/cancelar` | MOZO, LOCAL, ADMIN (no pendiente: solo ADMIN) | `pedido:actualizado` |
+| PATCH | `/api/pedidos/:id/items/:itemId/cancelar` | MOZO, LOCAL, ADMIN (lo que cocina ya empezó: solo ADMIN) | `pedido:actualizado` |
 | PATCH | `/api/pedidos/:id/cargos` | LOCAL, ADMIN | `pedido:actualizado` |
 | PATCH | `/api/pedidos/:id/entrega` | LOCAL, ADMIN | `pedido:actualizado` |
 | PATCH | `/api/pedidos/:id/cancelar` | LOCAL, ADMIN | `pedido:actualizado` |
@@ -1395,4 +1472,5 @@ Notas para el frontend:
 | GET | `/api/caja/cobrados` | LOCAL, ADMIN | |
 | POST | `/api/caja/cerrar` | LOCAL, ADMIN | `caja:actualizada` |
 | GET | `/api/admin/carta`, `/usuarios`, `/mesas`, `/repartidores`, `/notas`, `/negocio`, `/reportes` | ADMIN | |
+| PATCH | `/api/admin/areas/:id` | ADMIN | `carta:actualizada` |
 | POST, PATCH, PUT, DELETE | `/api/admin/…` (ver [Administración](#administración)) | ADMIN | `carta:actualizada` |

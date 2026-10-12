@@ -143,6 +143,20 @@ Los pasos para Railway están en `../docs/DESPLIEGUE.md`.
 - `PedidoItem.listoEn` guarda cuándo se marcó LISTO (`fijarEstado` en
   `pedidos.service.ts`): null al volver a PENDIENTE o PREPARANDO, se conserva
   al entregar.
+- Lo que no pasa por cocina: `Area.pasaPorCocina` (false = lo saca el mozo,
+  como las bebidas) se copia a `PedidoItem.pasaPorCocina` al pedir
+  (`prepararItems`). Esos items nacen ya servidos en `insertarRonda`: ENTREGADO
+  en MESA, LISTO en PARA_LLEVAR y DELIVERY, con `listoEn` (y `entregadoEn`).
+  `calcularEstadoPedido` solo mira los items de cocina mientras haya alguno, y
+  los reportes no los cuentan en el tiempo de cocina. Cobrar nunca depende del
+  estado de los items.
+- `PedidoItem.entregadoEn` lo mantiene `fijarEstado` junto con `listoEn`.
+- Cancelar un item (`cancelarItem`) acepta `cantidad`: una cancelación parcial
+  divide el item (el original conserva su id y sus pagos; las unidades
+  canceladas van a una fila gemela con la misma ronda y orden). Lo que cocina
+  ya empezó solo lo cancela ADMIN; lo que no pasa por cocina, cualquiera.
+  `canceladoEn` y `canceladoPorId` alimentan `cancelaciones` de los reportes.
+  Pruebas en `tests/sin-cocina.test.ts`.
 - Una ronda puede traer `nota`: se agrega a `Pedido.nota` con `" · "`, nunca la
   reemplaza (un pedido nuevo que entra como ronda no pierde su nota general).
 - Errores: lanzar `ErrorApp` (`src/lib/errores.ts`); el middleware responde

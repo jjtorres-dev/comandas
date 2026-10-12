@@ -122,6 +122,7 @@ model Usuario {
   cambiosDePago  PagoCambio[]
   turnosAbiertos TurnoCaja[]  @relation("TurnoAbiertoPor")
   turnosCerrados TurnoCaja[]  @relation("TurnoCerradoPor")
+  itemsCancelados PedidoItem[] @relation("ItemCanceladoPor")
 
   @@unique([negocioId, usuario])
 }
@@ -135,6 +136,9 @@ model Area {
   nombre    String
   orden     Int     @default(0)
   activo    Boolean @default(true)
+  // false = lo saca el mozo (bebidas de la refrigeradora): sus items no van al
+  // panel de cocina, nacen ya entregados (o listos, si hay que embolsarlos)
+  pasaPorCocina Boolean @default(true)
 
   negocio   Negocio      @relation(fields: [negocioId], references: [id])
   productos Producto[]
@@ -360,10 +364,23 @@ model PedidoItem {
   // Cuándo se marcó LISTO. Vuelve a null si regresa a PENDIENTE o PREPARANDO;
   // se conserva al pasar a ENTREGADO. El panel de cocina ordena "recién listos" con esto
   listoEn  DateTime?
+  // Cuándo se entregó (null si no está ENTREGADO)
+  entregadoEn DateTime?
 
-  pedido   Pedido           @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
-  variante VarianteProducto @relation(fields: [varianteId], references: [id])
-  area     Area             @relation(fields: [areaId], references: [id])
+  // Copia de Area.pasaPorCocina al pedir. false: nació ENTREGADO (mesa) o
+  // LISTO (para llevar y delivery), no sale en cocina ni cuenta para el
+  // estado del pedido
+  pasaPorCocina Boolean @default(true)
+
+  // Quién canceló este item (o estas unidades) y cuándo, con la ruta de
+  // cancelar items. null si se canceló el pedido entero, que guarda su motivo
+  canceladoEn    DateTime?
+  canceladoPorId String?
+
+  pedido       Pedido           @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  variante     VarianteProducto @relation(fields: [varianteId], references: [id])
+  area         Area             @relation(fields: [areaId], references: [id])
+  canceladoPor Usuario?         @relation("ItemCanceladoPor", fields: [canceladoPorId], references: [id])
 
   @@index([areaId, estado])
   @@index([pedidoId, idRonda])

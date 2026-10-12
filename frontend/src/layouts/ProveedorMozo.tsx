@@ -1,9 +1,12 @@
 import { ArrowsClockwiseIcon, TrashIcon } from "@phosphor-icons/react";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { Outlet, useNavigate } from "react-router";
 import { Boton } from "../componentes/Boton";
 import { BotonConfirmar } from "../componentes/BotonConfirmar";
 import { HojaInferior } from "../componentes/HojaInferior";
+import { consultaCarta } from "../lib/consultas";
+import { conteoDeProductos } from "../lib/conteo";
 import { plural, soles } from "../lib/formato";
 import { useUltimo } from "../lib/useUltimo";
 import {
@@ -17,7 +20,7 @@ import {
   resolverRevisando,
   useMozo,
 } from "../mozo/almacen";
-import { cantidadTotal, montoTotal } from "../mozo/lineas";
+import { montoTotal } from "../mozo/lineas";
 import { useAvisosListo } from "../mozo/useAvisosListo";
 import { useSesion } from "../sesion/contexto";
 import { useConexion } from "../tiempo-real/contexto";
@@ -64,6 +67,7 @@ export function ProveedorMozo() {
 // Lista de lo que todavía no llegó a cocina
 function HojaCola() {
   const { cola, colaAbierta, enviando } = useMozo();
+  const { data: carta } = useQuery(consultaCarta);
   const pendientes = cola.filter((e) => e.estado === "pendiente");
 
   useEffect(() => {
@@ -93,7 +97,7 @@ function HojaCola() {
               <p className="truncate text-xl font-bold text-tinta">{envio.destino.nombre}</p>
               <p className="text-lg tabular-nums">
                 {envio.pedidoId ? "Ronda · " : ""}
-                {plural(cantidadTotal(envio.lineas), "plato", "platos")} · {soles(montoTotal(envio.lineas))}
+                {conteoDeProductos(envio.lineas, carta)} · {soles(montoTotal(envio.lineas))}
               </p>
             </div>
             <BotonConfirmar

@@ -1,9 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { api, mensajeDe } from "../lib/api";
+import { api, ErrorApi, mensajeDe } from "../lib/api";
 import { claves, consultaPedidosActivos } from "../lib/consultas";
 import type { Pedido } from "../lib/tipos";
-import { listosDe, nombreDePedido } from "./useAvisosListo";
+import { nombreDePedido, porEntregarDe } from "./useAvisosListo";
 import { plural } from "../lib/formato";
 
 // Tras cada cambio, el pedido que devuelve el servidor reemplaza al de la
@@ -26,7 +26,7 @@ export function useEntregarListos() {
   const alConfirmar = useAlConfirmar();
   return useMutation({
     mutationFn: async (pedido: Pedido) => {
-      const itemIds = listosDe(pedido).map((i) => i.id);
+      const itemIds = porEntregarDe(pedido).map((i) => i.id);
       return { ...(await cambiarEstado(pedido.id, itemIds, "ENTREGADO")), itemIds };
     },
     onSuccess: (respuesta) => {
@@ -47,11 +47,15 @@ export function useEntregarListos() {
   });
 }
 
+// Cancela un item entero o, con `cantidad`, solo esas unidades (el "−" de la cuenta)
 export function useCancelarItem(pedidoId: string) {
   const alConfirmar = useAlConfirmar();
   return useMutation({
-    mutationFn: (itemId: string) => api<{ pedido: Pedido }>(`/pedidos/${pedidoId}/items/${itemId}/cancelar`, { metodo: "PATCH" }),
+    mutationFn: ({ itemId, cantidad }: { itemId: string; cantidad?: number }) =>
+      api<{ pedido: Pedido }>(`/pedidos/${pedidoId}/items/${itemId}/cancelar`, { metodo: "PATCH", ...(cantidad ? { cuerpo: { cantidad } } : {}) }),
     onSuccess: alConfirmar,
-    onError: (error) => toast.error(mensajeDe(error)),
+    // La cocina lo empezó mientras el mozo miraba la cuenta
+    onError: (error) =>
+      toast.error(error instanceof ErrorApi && error.codigo === "SIN_PERMISO" ? "Ya se está preparando: pídelo a cocina" : mensajeDe(error)),
   });
 }

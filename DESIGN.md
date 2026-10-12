@@ -317,7 +317,8 @@ Lo destructivo pide una segunda pulsación: el botón pasa a rojo con la
 pregunta ("¿Salir?", "Sí, cancelar", "Sí, borrar") durante 4 segundos, sin
 cambiar de ancho. Un toque
 accidental no deja la cocina sin pantalla ni borra un plato. Lo usan Salir
-(local) y `BotonConfirmar` (cancelar un item, descartar un pedido de la cola).
+(local), `BotonConfirmar` (cancelar un item, descartar un pedido de la cola) y
+el "−" de la cuenta de la mesa ("Sí, quitar 1").
 
 ### Cabecera de pantalla (mozo)
 Las pantallas de una sola tarea (tomar pedido, resumen, mesa) cambian la marca
@@ -341,9 +342,44 @@ El relleno lima completo se reserva para "listo": baldosa, tarjeta de pedido,
 banda del detalle, píldora y aviso.
 
 ### Botón de producto
-Dos columnas, 112 px de alto mínimo: nombre en negrita (hasta 3 líneas) y
+Dos columnas, 120 px de alto mínimo: nombre en negrita (hasta 3 líneas) y
 precio. Un toque suma 1. Con unidades pasa a `primario-suave` con borde
-`primario-profundo`, muestra la cantidad en un disco `marino` y un "−" de 48 px.
+`primario-profundo` y su pie cambia el precio por "− cantidad +" (48 px cada
+uno): el nombre cede una línea para que la baldosa no crezca bajo el dedo.
+Tocar el nombre sigue sumando 1.
+
+### Cantidad
+**El número sobre `marino` es el que se toca.** En la carta, en el resumen y en
+Delivery, la cantidad de una línea es un botón `marino` con texto blanco entre
+"−" y "+". Tocarlo abre el teclado de cantidad, una hoja inferior con la
+pregunta "¿Cuántos?": la cifra grande (60 px), una fila "De un toque" con los
+atajos 2, 3, 4, 6 y 12 en `marino` (ponen la cantidad y cierran), el teclado
+"U otra cantidad" con teclas blancas de 64 px, y al pie "Poner 8". Con 0, el
+pie pasa a "Quitar del pedido" en rojo. En la PC se escribe con el teclado y
+Enter confirma.
+
+### Contar lo pedido
+Un solo texto en toda la app: lo que pasa por cocina son platos y lo que saca
+el mozo, bebidas. "2 platos", "6 bebidas" o "2 platos · 6 bebidas" (los platos
+primero, singular con 1). Un combo es 1 plato; lo cancelado no cuenta. Los
+avisos de "listo" solo hablan de platos.
+
+### Cuenta de la mesa
+Lo primero que ve el mozo al abrir una mesa ocupada. De arriba abajo: el total
+de la mesa (48 px, la cifra más grande de la pantalla), dos opciones juntas
+("Todo junto" / "Por rondas", la primera elegida) y la lista.
+
+- **Todo junto:** una fila por cada cosa pedida igual (plato, variante, notas y
+  platos del combo), sumando todas las rondas: "6× Cerveza Pilsen" y su monto.
+  Debajo, cómo va en cocina con píldoras contadas ("1 listo", "1 preparando") y,
+  a la derecha, "−" y "+" de 48 px. Lo que no pasa por cocina no lleva píldora.
+- **"+"** pide una unidad más; varios toques seguidos salen como una sola ronda.
+  Mientras viaja, la fila dice "+2 enviando".
+- **"−"** usa la segunda pulsación: los dos botones se vuelven uno rojo, "Sí,
+  quitar 1", del mismo ancho. Si la cocina ya empezó todas las unidades, el "−"
+  se ve apagado (borde y trazo grises) y al tocarlo avisa "Ya se está
+  preparando: pídelo a cocina".
+- **Por rondas:** el detalle de antes, ronda por ronda, con lo cancelado tachado.
 
 ### Chips
 Píldoras de 48 px con borde de 2 px; la elegida es `marino` con texto blanco.
@@ -371,7 +407,8 @@ campana; su botón de acción mide 48 px.
 
 ### Barra de pedido
 Fija abajo con la sombra Barra: un solo botón de 64 px. En la carta dice
-cuántos platos, el total y "Ver pedido"; en el resumen, "Enviar a cocina".
+cuántos platos y bebidas, el total y "Ver pedido"; en el resumen, "Enviar a
+cocina" (o "Anotar en la cuenta" si nada de lo anotado pasa por cocina).
 
 ### Franja de cola
 Franja `alerta` bajo la cabecera, en todas las pantallas del mozo, mientras
@@ -494,6 +531,10 @@ medidas son las de siempre (texto de 16 px o más, destinos de 48 px).
   nota gris que explica por qué. Lo desactivado sigue en la lista del dueño
   con la píldora gris del ojo tachado. Eliminar usa la segunda pulsación.
 - **Orden:** flechas de subir y bajar (48 px), nunca arrastrar.
+- **¿Qué pasa por cocina?** (Local): un interruptor por área de preparación.
+  Su ayuda dice el efecto con palabras ("No pasa por cocina: lo saca el mozo").
+- **Lo quitado** (Ventas): bajo "Pagos corregidos", la lista "Platos y bebidas
+  quitados": qué, de qué mesa, quién y cuándo, en frases completas.
 
 ### Gráficos (Ventas)
 Hechos con la guía `dataviz`. Cada gráfico es una sola serie, así que no hay

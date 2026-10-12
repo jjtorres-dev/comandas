@@ -29,7 +29,7 @@ export async function cartaCompleta(negocioId: string) {
   ]);
 
   return {
-    areas: areas.map((a) => ({ id: a.id, nombre: a.nombre })),
+    areas: areas.map((a) => ({ id: a.id, nombre: a.nombre, pasaPorCocina: a.pasaPorCocina })),
     categorias: categorias.map((c) => ({
       id: c.id,
       nombre: c.nombre,

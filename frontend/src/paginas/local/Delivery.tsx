@@ -122,7 +122,7 @@ export function Delivery() {
           <p role="status" className={`flex flex-1 items-center gap-2.5 rounded-control px-4 py-3 text-xl font-bold text-tinta ${enviadoDistinto ? "bg-alerta" : "bg-listo-suave"}`}>
             <CheckCircleIcon aria-hidden="true" weight="fill" className={`size-7 shrink-0 ${enviadoDistinto ? "text-tinta" : "text-listo-fuerte"}`} />
             <span className="flex-1 tabular-nums">
-              Pedido #{enviado.numero} enviado a cocina · Total {soles(centimos(enviado.total))}
+              Pedido #{enviado.numero} {enviado.items.some((i) => i.pasaPorCocina) ? "enviado a cocina" : "anotado en la cuenta"} · Total {soles(centimos(enviado.total))}
               {/* Un reintento puede devolver el pedido tal como llegó la primera vez */}
               {enviadoDistinto && ". Ese total no coincide con lo último que anotaste: revísalo con Modificar."}
             </span>

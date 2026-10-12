@@ -88,6 +88,8 @@ export const esquemaEditarMesa = z
   .object({ nombre: nombre(40).optional(), activo: z.boolean().optional() })
   .refine((d) => Object.values(d).some((v) => v !== undefined), { message: "No hay nada que cambiar" });
 
+export const esquemaEditarArea = z.object({ pasaPorCocina: z.boolean() });
+
 // "" o null quitan el celular
 const telefonoOpcional = z.union([esquemaTelefono, z.literal("").transform(() => null), z.null()]);
 export const esquemaRepartidor = z.object({ nombre: nombre(), telefono: telefonoOpcional.optional() });

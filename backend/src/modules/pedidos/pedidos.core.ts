@@ -77,6 +77,8 @@ export function serializar(p: PedidoCompleto) {
       idRonda: i.idRonda,
       creadoEn: i.creadoEn,
       listoEn: i.listoEn,
+      entregadoEn: i.entregadoEn,
+      pasaPorCocina: i.pasaPorCocina,
     })),
   };
 }
@@ -118,13 +120,22 @@ export function exigirNoCancelado(pedido: { estado: EstadoPedido }) {
   }
 }
 
-// Estado del pedido a partir de sus items no cancelados
-export function calcularEstadoPedido(actual: EstadoPedido, items: EstadoItem[]): EstadoPedido {
-  const todos = (...estados: EstadoItem[]) => items.every((e) => estados.includes(e));
-
+// Estado del pedido a partir de sus items no cancelados. Lo que no pasa por
+// cocina (bebidas) no cuenta mientras haya algo de cocina: un ceviche pendiente
+// con sus cervezas ya en la mesa es un pedido PENDIENTE, no "a medias".
+export function calcularEstadoPedido(
+  actual: EstadoPedido,
+  items: { estado: EstadoItem; pasaPorCocina: boolean }[],
+): EstadoPedido {
   if (items.length === 0) return EstadoPedido.CANCELADO; // no queda nada por servir
-  if (todos(EstadoItem.ENTREGADO)) return EstadoPedido.ENTREGADO;
-  if (items.includes(EstadoItem.PREPARANDO)) return EstadoPedido.PREPARANDO;
+  // Entregado es entregado todo, también lo que no pasó por cocina
+  if (items.every((i) => i.estado === EstadoItem.ENTREGADO)) return EstadoPedido.ENTREGADO;
+
+  const deCocina = items.filter((i) => i.pasaPorCocina);
+  const estados = (deCocina.length > 0 ? deCocina : items).map((i) => i.estado);
+  const todos = (...validos: EstadoItem[]) => estados.every((e) => validos.includes(e));
+
+  if (estados.includes(EstadoItem.PREPARANDO)) return EstadoPedido.PREPARANDO;
   if (todos(EstadoItem.PENDIENTE)) return EstadoPedido.PENDIENTE;
   if (todos(EstadoItem.LISTO, EstadoItem.ENTREGADO)) {
     // EN_CAMINO lo marca el despacho de delivery, no los items
@@ -170,7 +181,7 @@ export async function recalcular(tx: Tx, pedidoId: string) {
     },
   });
 
-  const estado = calcularEstadoPedido(pedido.estado, pedido.items.map((i) => i.estado));
+  const estado = calcularEstadoPedido(pedido.estado, pedido.items);
   // Un pedido cancelado no debe nada: ni envío, ni tapers, ni descuento
   const cancelado = estado === EstadoPedido.CANCELADO;
   const subtotal = sumar(pedido.items.map((i) => i.precioUnitario.times(i.cantidad)));

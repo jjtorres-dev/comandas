@@ -143,6 +143,9 @@ export const esquemaCancelarPedido = z.object({
   motivo: z.string().trim().min(3, "Escribe el motivo de la cancelación").max(200),
 });
 
+// Sin cantidad se cancela el item entero; con ella, solo esas unidades
+export const esquemaCancelarItem = z.object({ cantidad: z.number().int().min(1).max(99).optional() });
+
 export const esquemaRepartidor = z.object({ repartidorId: z.uuid().nullable() });
 
 // EN_CAMINO y ENTREGADO despachan; LISTO (y EN_CAMINO desde ENTREGADO) deshacen el paso anterior

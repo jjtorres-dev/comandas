@@ -24,7 +24,7 @@ export async function reporte(negocioId: string, rango: Rango) {
   const fin = new Date(inicioDeFecha(rango.hasta).getTime() + UN_DIA);
   const enRango = { gte: inicio, lt: fin };
 
-  const [pagos, pedidos, items, turnos, cambios] = await Promise.all([
+  const [pagos, pedidos, items, turnos, cambios, cancelados] = await Promise.all([
     prisma.pago.findMany({
       where: { anuladoEn: null, creadoEn: enRango, pedido: { negocioId } },
       select: { pedidoId: true, metodo: true, monto: true, creadoEn: true, pedido: { select: { tipo: true } } },
@@ -36,7 +36,7 @@ export async function reporte(negocioId: string, rango: Rango) {
     }),
     prisma.pedidoItem.findMany({
       where: { creadoEn: enRango, estado: { not: EstadoItem.CANCELADO }, pedido: { negocioId } },
-      select: { nombreProducto: true, cantidad: true, precioUnitario: true, creadoEn: true, listoEn: true, area: { select: { id: true, nombre: true } } },
+      select: { nombreProducto: true, cantidad: true, precioUnitario: true, creadoEn: true, listoEn: true, pasaPorCocina: true, area: { select: { id: true, nombre: true } } },
     }),
     prisma.turnoCaja.findMany({ where: { negocioId, abiertoEn: enRango }, orderBy: { abiertoEn: "desc" }, include: incluirTurno }),
     prisma.pagoCambio.findMany({
@@ -49,6 +49,22 @@ export async function reporte(negocioId: string, rango: Rango) {
         creadoEn: true,
         usuario: { select: { nombre: true } },
         pago: { select: { monto: true, pedido: { select: { id: true, numero: true } } } },
+      },
+    }),
+    // Platos y bebidas que alguien quitó de un pedido ya enviado
+    prisma.pedidoItem.findMany({
+      where: { canceladoEn: enRango, pedido: { negocioId } },
+      orderBy: { canceladoEn: "desc" },
+      select: {
+        id: true,
+        nombreProducto: true,
+        cantidad: true,
+        precioUnitario: true,
+        canceladoEn: true,
+        entregadoEn: true,
+        pasaPorCocina: true,
+        canceladoPor: { select: { nombre: true } },
+        pedido: { select: { id: true, numero: true, tipo: true, mesa: { select: { nombre: true } } } },
       },
     }),
   ]);
@@ -83,7 +99,8 @@ export async function reporte(negocioId: string, rango: Rango) {
   for (const p of pedidos) porHora[diaYHora(p.creadoEn).hora].pedidos += 1;
 
   // ---------- Cocina: de que se pide a que está listo ----------
-  const listos = items.filter((i) => i.listoEn !== null);
+  // Lo que no pasa por cocina nace listo: no es tiempo de cocina
+  const listos = items.filter((i) => i.listoEn !== null && i.pasaPorCocina);
   const promedio = (lista: typeof listos) =>
     lista.length === 0 ? null : minutos(lista.reduce((ms, i) => ms + (i.listoEn!.getTime() - i.creadoEn.getTime()), 0) / lista.length);
   const areas = new Map<string, { nombre: string; items: typeof listos }>();
@@ -127,6 +144,18 @@ export async function reporte(negocioId: string, rango: Rango) {
       usuario: c.usuario.nombre,
       monto: dinero(c.pago.monto),
       pedido: c.pago.pedido,
+    })),
+    cancelaciones: cancelados.map((i) => ({
+      id: i.id,
+      nombreProducto: i.nombreProducto,
+      cantidad: i.cantidad,
+      monto: dinero(i.precioUnitario.times(i.cantidad)),
+      canceladoEn: i.canceladoEn,
+      usuario: i.canceladoPor?.nombre ?? null,
+      pasaPorCocina: i.pasaPorCocina,
+      // Ya estaba en la mesa (o entregado) cuando se quitó
+      yaEntregado: i.entregadoEn !== null,
+      pedido: { id: i.pedido.id, numero: i.pedido.numero, tipo: i.pedido.tipo, mesa: i.pedido.mesa?.nombre ?? null },
     })),
   };
 }

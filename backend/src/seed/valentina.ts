@@ -165,9 +165,10 @@ export const crearNotas = (tx: Tx, negocioId: string) =>
 // Las áreas de preparación y la carta completa: categorías, platos, precios y combos
 export async function crearCarta(tx: Tx, negocioId: string) {
   // Si el área ya existe se reutiliza: nunca quedan dos "Cocina"
-  const area = async (nombre: string, orden: number) =>
-    (await tx.area.findFirst({ where: { negocioId, nombre } })) ?? (await tx.area.create({ data: { negocioId, nombre, orden } }));
-  const areas = { Cocina: await area("Cocina", 1), Bebidas: await area("Bebidas", 2) };
+  const area = async (nombre: string, orden: number, pasaPorCocina: boolean) =>
+    (await tx.area.findFirst({ where: { negocioId, nombre } })) ?? (await tx.area.create({ data: { negocioId, nombre, orden, pasaPorCocina } }));
+  // Las bebidas no pasan por cocina: el mozo las saca de la refrigeradora
+  const areas = { Cocina: await area("Cocina", 1, true), Bebidas: await area("Bebidas", 2, false) };
 
   // Carta: categorías -> productos -> variantes
   const productoIdPorNombre = new Map<string, string>();

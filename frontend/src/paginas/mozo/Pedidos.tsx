@@ -4,14 +4,16 @@ import { Link } from "react-router";
 import { ErrorDeCarga, Esqueleto } from "../../componentes/EstadoDeCarga";
 import { PildoraEstado } from "../../componentes/PildoraEstado";
 import { consultaPedidosActivos } from "../../lib/consultas";
+import { contablesDeItems, contar, conteoDeItems } from "../../lib/conteo";
 import { haceCuanto, plural, soles, useAhora } from "../../lib/formato";
 import type { Pedido } from "../../lib/tipos";
 import { useEntregarListos } from "../../mozo/acciones";
-import { nombreDePedido } from "../../mozo/useAvisosListo";
+import { listosDe, nombreDePedido, porEntregarDe } from "../../mozo/useAvisosListo";
 import { useSesion } from "../../sesion/contexto";
 
-const cantidadDe = (pedido: Pedido, filtro: (estado: string) => boolean) =>
-  pedido.items.reduce((suma, i) => suma + (filtro(i.estado) ? i.cantidad : 0), 0);
+// Platos (lo que pasa por cocina) en alguno de esos estados: el avance de la cocina
+const platosEn = (pedido: Pedido, ...estados: string[]) =>
+  contar(contablesDeItems(pedido.items.filter((i) => estados.includes(i.estado)))).platos;
 
 export function Pedidos() {
   const { usuario } = useSesion();
@@ -22,7 +24,7 @@ export function Pedidos() {
   // Mis pedidos: primero los que tienen algo listo, y dentro de cada grupo del más antiguo al más nuevo
   const mios = (pedidos.data ?? [])
     .filter((p) => p.mozo.id === usuario?.id)
-    .map((pedido) => ({ pedido, listos: cantidadDe(pedido, (e) => e === "LISTO") }))
+    .map((pedido) => ({ pedido, listos: listosDe(pedido).reduce((suma, i) => suma + i.cantidad, 0) }))
     .sort((a, b) => Number(b.listos > 0) - Number(a.listos > 0));
 
   return (
@@ -48,8 +50,8 @@ export function Pedidos() {
       ) : (
         <ul className="flex flex-col gap-3">
           {mios.map(({ pedido, listos }) => {
-            const total = cantidadDe(pedido, (e) => e !== "CANCELADO");
-            const hechos = cantidadDe(pedido, (e) => e === "LISTO" || e === "ENTREGADO");
+            const total = contar(contablesDeItems(pedido.items)).platos;
+            const hechos = platosEn(pedido, "LISTO", "ENTREGADO");
             return (
               <li key={pedido.id}>
                 <article
@@ -70,12 +72,21 @@ export function Pedidos() {
                   </Link>
 
                   {listos > 0 ? (
-                    <>
                       <p className="flex items-center gap-2 text-xl font-bold text-tinta">
                         <BellRingingIcon aria-hidden="true" weight="fill" className="size-7 shrink-0" />
                         {plural(listos, "plato listo", "platos listos")}
                         {hechos < total ? ` de ${total}` : ""}
                       </p>
+                  ) : (
+                    <div className="flex items-center justify-between gap-3">
+                      <PildoraEstado estado={pedido.estado} />
+                      <p className="text-lg text-marino tabular-nums">
+                        {hechos > 0 && hechos < total ? `${hechos} de ${plural(total, "plato", "platos")} entregados` : conteoDeItems(pedido.items)}
+                      </p>
+                    </div>
+                  )}
+                  {/* También un para llevar de solo bebidas: está listo sin pasar por cocina */}
+                  {porEntregarDe(pedido).length > 0 && (
                       <button
                         type="button"
                         disabled={entregar.isPending && entregar.variables?.id === pedido.id}
@@ -89,14 +100,6 @@ export function Pedidos() {
                         )}
                         Entregado
                       </button>
-                    </>
-                  ) : (
-                    <div className="flex items-center justify-between gap-3">
-                      <PildoraEstado estado={pedido.estado} />
-                      <p className="text-lg text-marino tabular-nums">
-                        {hechos > 0 ? `${hechos} de ${total} entregados` : plural(total, "plato", "platos")}
-                      </p>
-                    </div>
                   )}
                 </article>
               </li>

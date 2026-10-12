@@ -80,6 +80,9 @@ de un POS genérico:
   llevar guardan nombre, teléfono, dirección y referencia del cliente; delivery
   suma costo de envío y puede tener repartidor asignado.
 - **Rondas**: a un pedido abierto se le agregan items en rondas sucesivas.
+- **Lo que no pasa por cocina**: cada área de preparación dice si pasa por
+  cocina. Lo de un área que no pasa (en Valentina, las bebidas) lo saca el mozo:
+  nace entregado en mesa y listo en para llevar y delivery, y la cocina no lo ve.
 - **Caja**: un solo turno abierto por negocio, con monto inicial, cobros por
   método de pago y cierre.
 - **Tiempo real**: todos los dispositivos del negocio reciben cada pedido nuevo
@@ -128,6 +131,30 @@ Decisiones tomadas por el dueño:
 - **El logo vive en la base de datos**, no en disco: sobrevive a cada
   despliegue. El dueño lo cambia desde `/admin`.
 
+Lecciones del primer día de uso (Cevichería Valentina). Vienen del uso real y
+mandan sobre lo que se había supuesto al diseñar:
+
+1. **Las bebidas no pasan por cocina.** El mozo las saca de la refrigeradora;
+   que aparecieran y sonaran en el panel de cocina era ruido, y dejaban el
+   pedido "pendiente" sin que nadie tuviera nada que preparar. Lo que no pasa
+   por cocina no sale en el panel, no suena y no cuenta para el tiempo de
+   cocina ni para el estado del pedido, pero está en la cuenta desde el primer
+   momento. El dueño decide qué áreas pasan por cocina (`/admin` → Local).
+   **Cobrar nunca depende de la cocina**: la caja cobra un pedido en cualquier
+   estado.
+2. **La cantidad se escribe, no se cuenta a toques.** "6 cervezas" eran seis
+   toques. Tras el primer toque el producto muestra "− cantidad +", y tocar la
+   cantidad abre un teclado numérico con atajos (2, 3, 4, 6, 12). Vale en la
+   carta, en el resumen y en Delivery.
+3. **La mesa se mira sumada, no por rondas.** Al abrir una mesa ocupada, el
+   mozo quiere saber qué hay en la mesa y cuánto va: "6× Cerveza Pilsen" y el
+   total, no seis rondas de una cerveza. La vista por rondas queda como
+   detalle. Desde la cuenta sumada se corrige de a una unidad: "+" pide una
+   más y "−" quita una que la cocina todavía no empezó (o una bebida, aunque
+   ya esté en la mesa). Lo que la cocina ya está preparando solo lo quita el
+   dueño. Toda unidad quitada queda registrada con quién y cuándo, a la vista
+   del dueño en Ventas.
+
 Decisiones abiertas:
 
 - Impresión de comandas o notas de venta: no hay impresora por ahora.
@@ -153,6 +180,9 @@ Decisiones abiertas:
   chaufas, frituras, guarniciones, combos, bebidas) con sus precios, y los
   usuarios de desarrollo.
 - `docs/API.md`: contrato completo de endpoints y eventos.
+
+- Las tres lecciones del primer día de uso, arriba: es el único feedback real
+  que hay.
 
 No hay testimonios, métricas de uso, precios del producto ni otros clientes: no
 inventarlos.

@@ -1,18 +1,20 @@
-import { ArrowRightIcon, CaretDownIcon, MinusIcon, WarningIcon } from "@phosphor-icons/react";
+import { ArrowRightIcon, CaretDownIcon, MinusIcon, PlusIcon, WarningIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { CabeceraPantalla } from "../../componentes/CabeceraPantalla";
 import { ErrorDeCarga, Esqueleto } from "../../componentes/EstadoDeCarga";
+import { BotonCantidad, HojaCantidad } from "../../componentes/pedido/HojaCantidad";
 import { HojaCombo, HojaVariantes } from "../../componentes/pedido/HojasDeCarta";
 import { consultaCarta } from "../../lib/consultas";
-import { plural, soles } from "../../lib/formato";
+import { conteoDeProductos } from "../../lib/conteo";
+import { soles } from "../../lib/formato";
 import { useCambio } from "../../lib/useCambio";
 import { useEspacioAvisos } from "../../lib/useEspacioAvisos";
 import type { Categoria, Producto } from "../../lib/tipos";
 import { editarBorrador } from "../../mozo/almacen";
 import { FranjaCola } from "../../mozo/FranjaCola";
-import { agregar, cantidadDe, cantidadTotal, type Linea, lineaDe, montoTotal, quitarUno } from "../../mozo/lineas";
+import { agregar, cantidadDe, cantidadTotal, type Linea, lineaDe, montoTotal, ponerCantidadDeProducto, quitarUno } from "../../mozo/lineas";
 import { usePedidoEnCurso } from "../../mozo/usePedidoEnCurso";
 
 export function TomarPedido() {
@@ -21,6 +23,8 @@ export function TomarPedido() {
   const carta = useQuery(consultaCarta);
   const [conVariantes, setConVariantes] = useState<Producto | null>(null);
   const [combo, setCombo] = useState<Producto | null>(null);
+  // El producto al que se le está escribiendo la cantidad con el teclado
+  const [conCantidad, setConCantidad] = useState<Producto | null>(null);
 
   const { destino, borrador } = enCurso;
   const lineas = borrador?.lineas ?? [];
@@ -75,6 +79,7 @@ export function TomarPedido() {
                       cantidad={cantidadDe(lineas, producto.id)}
                       alTocar={() => alTocar(producto)}
                       alQuitar={() => guardar(quitarUno(lineas, producto.id))}
+                      alPedirCantidad={() => setConCantidad(producto)}
                     />
                   </li>
                 ))}
@@ -102,7 +107,7 @@ export function TomarPedido() {
               <span className="flex min-w-0 flex-1 flex-col leading-tight tabular-nums">
                 {/* La clave reinicia el pulso: confirma que el toque entró */}
                 <span key={platos} className={`origin-left text-lg ${platosCambio ? "animate-pulso" : ""}`}>
-                  {plural(platos, "plato", "platos")}
+                  {conteoDeProductos(lineas, carta.data)}
                 </span>
                 <span className="text-2xl">{soles(montoTotal(lineas))}</span>
               </span>
@@ -117,6 +122,14 @@ export function TomarPedido() {
         </div>
       </div>
 
+      <HojaCantidad
+        de={conCantidad && { nombre: conCantidad.nombre, cantidad: cantidadDe(lineas, conCantidad.id) }}
+        alCerrar={() => setConCantidad(null)}
+        alGuardar={(cantidad) => {
+          if (conCantidad) guardar(ponerCantidadDeProducto(lineas, conCantidad.id, cantidad));
+          setConCantidad(null);
+        }}
+      />
       <HojaVariantes
         producto={conVariantes}
         alCerrar={() => setConVariantes(null)}
@@ -229,57 +242,62 @@ function Categorias({ categorias }: { categorias: Categoria[] }) {
   );
 }
 
-type PropsProducto = { producto: Producto; cantidad: number; alTocar: () => void; alQuitar: () => void };
+type PropsProducto = { producto: Producto; cantidad: number; alTocar: () => void; alQuitar: () => void; alPedirCantidad: () => void };
 
-function BotonProducto({ producto, cantidad, alTocar, alQuitar }: PropsProducto) {
+// Un toque suma 1. Con unidades, el pie pasa a ser "− cantidad +", y tocar la
+// cantidad abre el teclado para escribirla de una vez.
+function BotonProducto({ producto, cantidad, alTocar, alQuitar, alPedirCantidad }: PropsProducto) {
   const precios = producto.variantes.map((v) => Number(v.precio));
   const elegido = cantidad > 0;
-  // El pulso responde al toque; no se dispara al volver a la carta con platos ya anotados
-  const cambio = useCambio(cantidad);
 
   return (
-    <div className="relative">
+    <div className={`flex min-h-30 flex-col rounded-control border-2 ${elegido ? "border-primario-profundo bg-primario-suave" : "border-borde-fuerte bg-superficie"}`}>
       <button
         type="button"
         onClick={alTocar}
-        className={`presionable flex min-h-28 w-full cursor-pointer flex-col justify-between gap-2 rounded-control border-2 p-3 text-left ${
-          elegido ? "border-primario-profundo bg-primario-suave" : "border-borde-fuerte bg-superficie"
-        }`}
+        className={`presionable flex w-full flex-1 cursor-pointer flex-col justify-between gap-2 rounded-[inherit] px-3 text-left ${elegido ? "pt-2.5 pb-1" : "py-3"}`}
       >
-        <span className={`line-clamp-3 text-lg leading-tight font-bold text-tinta ${elegido ? "pr-10" : ""}`}>{producto.nombre}</span>
-        <span className="flex items-center gap-1 text-lg leading-tight text-marino tabular-nums">
-          {producto.esCombo ? (
-            <>
-              {soles(precios[0])} · elige {producto.comboCantidad}
-            </>
-          ) : precios.length > 1 ? (
-            <>
-              Desde {soles(Math.min(...precios))}
-              <CaretDownIcon aria-hidden="true" weight="bold" className="size-4 shrink-0" />
-            </>
-          ) : (
-            soles(precios[0])
-          )}
-        </span>
-        {elegido && (
-          <span
-            key={cantidad}
-            className={`absolute top-2 right-2 grid h-9 min-w-9 place-items-center rounded-full bg-marino px-2 text-xl leading-none font-bold text-white tabular-nums ${cambio ? "animate-pulso" : ""}`}
-          >
-            {cantidad}
-            <span className="sr-only"> en el pedido</span>
+        {/* Con unidades el nombre cede una línea: la baldosa no crece bajo el dedo */}
+        <span className={`text-lg leading-tight font-bold text-tinta ${elegido ? "line-clamp-2" : "line-clamp-3"}`}>{producto.nombre}</span>
+        {elegido ? (
+          <span className="sr-only">{cantidad} en el pedido. Toca para sumar 1</span>
+        ) : (
+          <span className="flex items-center gap-1 text-lg leading-tight text-marino tabular-nums">
+            {producto.esCombo ? (
+              <>
+                {soles(precios[0])} · elige {producto.comboCantidad}
+              </>
+            ) : precios.length > 1 ? (
+              <>
+                Desde {soles(Math.min(...precios))}
+                <CaretDownIcon aria-hidden="true" weight="bold" className="size-4 shrink-0" />
+              </>
+            ) : (
+              soles(precios[0])
+            )}
           </span>
         )}
       </button>
       {elegido && (
-        <button
-          type="button"
-          onClick={alQuitar}
-          aria-label={`Quitar 1 ${producto.nombre}`}
-          className="presionable absolute right-1.5 bottom-1.5 grid size-12 cursor-pointer place-items-center rounded-interior border-2 border-marino bg-superficie text-marino"
-        >
-          <MinusIcon aria-hidden="true" weight="bold" className="size-6" />
-        </button>
+        <div className="flex items-center gap-1 px-1 pb-1">
+          <button
+            type="button"
+            onClick={alQuitar}
+            aria-label={`Quitar 1 ${producto.nombre}`}
+            className="presionable grid size-12 shrink-0 cursor-pointer place-items-center rounded-interior border-2 border-marino bg-superficie text-marino"
+          >
+            <MinusIcon aria-hidden="true" weight="bold" className="size-6" />
+          </button>
+          <BotonCantidad cantidad={cantidad} de={producto.nombre} onClick={alPedirCantidad} className="min-w-10 flex-1" />
+          <button
+            type="button"
+            onClick={alTocar}
+            aria-label={`Uno más de ${producto.nombre}`}
+            className="presionable grid size-12 shrink-0 cursor-pointer place-items-center rounded-interior bg-primario text-tinta"
+          >
+            <PlusIcon aria-hidden="true" weight="bold" className="size-6" />
+          </button>
+        </div>
       )}
     </div>
   );

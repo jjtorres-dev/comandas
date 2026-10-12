@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ErrorDeCarga, Esqueleto } from "../../componentes/EstadoDeCarga";
 import { PildoraEstado } from "../../componentes/PildoraEstado";
 import { consultaCaja, consultaCobrados, consultaPedidosActivos } from "../../lib/consultas";
-import { plural } from "../../lib/formato";
+import { conteoDeItems } from "../../lib/conteo";
 import type { CierreDeCaja, Pedido, Turno } from "../../lib/tipos";
 import { nombreDeTipo } from "../../local/comandas";
 import { centimos, soles } from "../../local/dinero";
@@ -204,7 +204,7 @@ function FilaPorCobrar({ pedido, elegido, alElegir }: { pedido: Pedido; elegido:
         </span>
         <PildoraEstado estado={pedido.estado} />
       </span>
-      <span className="sr-only">{plural(pedido.items.filter((i) => i.estado !== "CANCELADO").length, "plato", "platos")}</span>
+      <span className="sr-only">{conteoDeItems(pedido.items)}</span>
     </button>
   );
 }

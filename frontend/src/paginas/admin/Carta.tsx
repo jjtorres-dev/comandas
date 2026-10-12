@@ -6,7 +6,7 @@ import { Boton } from "../../componentes/Boton";
 import { ErrorDeCarga, Esqueleto } from "../../componentes/EstadoDeCarga";
 import { api } from "../../lib/api";
 import { consultaCartaAdmin } from "../../lib/consultas";
-import { plural } from "../../lib/formato";
+import { conteoDeProductos } from "../../lib/conteo";
 import type { CategoriaAdmin, ProductoAdmin } from "../../lib/tipos";
 import { FichaCategoria } from "./carta/FichaCategoria";
 import { FichaProducto } from "./carta/FichaProducto";
@@ -95,13 +95,15 @@ type PropsCategoria = {
 };
 
 function SeccionCategoria({ categoria, primera, ultima, ocupado, alMover, alEditar, alNuevoPlato, alAbrir }: PropsCategoria) {
+  // Para contar bien: las bebidas no son platos
+  const { data: carta } = useQuery(consultaCartaAdmin);
   return (
     <section aria-label={categoria.nombre} className="overflow-hidden rounded-panel border-2 border-borde bg-superficie">
       <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b-2 border-borde bg-primario-suave px-4 py-3 lg:px-6">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
           <h2 className="text-2xl leading-tight font-bold text-balance text-tinta">{categoria.nombre}</h2>
           {!categoria.activo && <Desactivado texto="Desactivada" />}
-          <p className="text-base text-marino">{plural(categoria.productos.length, "plato", "platos")}</p>
+          <p className="text-base text-marino">{conteoDeProductos(categoria.productos.map((p) => ({ productoId: p.id, cantidad: 1 })), carta)}</p>
         </div>
         <div className="flex shrink-0 gap-2">
           <Orden de={categoria.nombre} primero={primera} ultimo={ultima} alMover={alMover} ocupado={ocupado} />

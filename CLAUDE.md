@@ -54,7 +54,13 @@ Después, seguir `DESIGN.md`: los tokens están en `frontend/src/estilos.css`
 - Stack: Vite, React, TypeScript, Tailwind CSS v4, React Router, TanStack Query,
   socket.io-client, motion, sonner y vite-plugin-pwa. Íconos de Phosphor.
 - Comandos, desde `frontend/`: `npm run dev`, `npm run build` (incluye
-  `tsc -b`), `npm run lint` (oxlint) y `npm run e2e` (Playwright).
+  `tsc -b`), `npm run lint` (oxlint), `npm test` (vitest: pruebas unitarias
+  de funciones puras, `src/**/*.test.ts`) y `npm run e2e` (Playwright).
+- Contar lo pedido: siempre con `src/lib/conteo.ts` (`conteoDeItems` para
+  items de un pedido, `conteoDeProductos` para líneas sin enviar o productos
+  de la carta). Lo que pasa por cocina son "platos" y lo que no, "bebidas":
+  "2 platos · 6 bebidas". Nunca `plural(n, "plato", "platos")` suelto para
+  contar un pedido. Los avisos de "listo" solo cuentan platos.
 - `VITE_API_URL` vacío significa mismo origen: en desarrollo Vite reenvía
   `/api` y `/socket.io` al backend (`PROXY_BACKEND`), así que desde
   el celular basta con abrir `http://<ip-de-la-pc>:5173`.
@@ -81,6 +87,24 @@ Después, seguir `DESIGN.md`: los tokens están en `frontend/src/estilos.css`
   `src/mozo/lineas.ts` (las iguales se unen solas). Cada para llevar tiene su
   propio borrador (`llevar-<id>`). Las notas de un combo se envían como texto
   con el plato delante (`"Ceviche Simple: sin cebolla"`).
+- Cantidad rápida: `componentes/pedido/HojaCantidad.tsx` trae el teclado
+  numérico (atajos 2, 3, 4, 6, 12) y `BotonCantidad`, el número sobre marino
+  que lo abre. Lo usan la carta (`TomarPedido`: tras el primer toque el
+  producto muestra "− cantidad +"), el resumen y `Lineas` de Delivery, con
+  `ponerCantidad` y `ponerCantidadDeProducto` de `mozo/lineas.ts`.
+- Cuenta de la mesa (`/mozo/pedido/:id`, `paginas/mozo/DetallePedido.tsx`): la
+  vista principal suma los items de todas las rondas (`mozo/cuenta.ts`,
+  funciones puras: `acumular`, `estadoDeCocina`, `paraQuitar`, `unaMas`); "Por
+  rondas" es la vista secundaria. El "+" encola una ronda con `enviarRonda`
+  (varios toques seguidos salen juntos) y el "−" cancela una unidad con
+  `PATCH …/cancelar` y `cantidad: 1`: primero lo PENDIENTE; lo que cocina ya
+  empezó no se quita desde el mozo.
+- Lo que no pasa por cocina (`Area.pasaPorCocina`, en Valentina las bebidas):
+  cada item trae `pasaPorCocina`. `armarPanel` lo deja fuera del panel (no se
+  ve, no suena, no cuenta como ronda), `listosDe` no lo cuenta entre los
+  platos listos del mozo y `porEntregarDe` sí lo entrega junto con ellos. El
+  dueño lo cambia en `/admin` → Local ("¿Qué pasa por cocina?"). La caja cobra
+  en cualquier estado: nunca espera a la cocina.
 - Panel de cocina (`/local/cocina`): `src/local/comandas.ts` arma las comandas
   a partir de los pedidos activos (funciones puras), `acciones.ts` cambia
   estados siempre con "Deshacer", y `panel.ts` guarda lo que solo vale tras
@@ -107,8 +131,9 @@ Después, seguir `DESIGN.md`: los tokens están en `frontend/src/estilos.css`
 - Administración (`/admin`): `layouts/LayoutAdmin.tsx` (secciones abajo en el
   celular, pestañas arriba en PC) y `paginas/admin/` (`Ventas`, `Carta` con
   `carta/PrecioEditable`, `FichaProducto` y `FichaCategoria`, `Personal`, y
-  `Local` con `local/Lista` para mesas, motorizados y notas y
-  `local/DatosDelNegocio`). Todo cambio pasa por `useGuardar`
+  `Local` con `local/Lista` para mesas, motorizados y notas,
+  `local/DatosDelNegocio` y, en `Local.tsx`, qué áreas pasan por cocina). Ventas
+  muestra también lo que se quitó de los pedidos (`reporte.cancelaciones`). Todo cambio pasa por `useGuardar`
   (`src/admin/guardar.ts`), que vuelve a pedir `claves.admin`, la carta, las
   mesas y la sesión. La lógica pura está en `src/admin/` (`producto.ts`,
   `ventas.ts`, `periodos.ts`: los días son los de America/Lima). Los gráficos
@@ -132,7 +157,11 @@ Después, seguir `DESIGN.md`: los tokens están en `frontend/src/estilos.css`
 - Pruebas de punta a punta: `npm run e2e` desde `frontend/` (Playwright;
   `e2e/mozo.spec.ts` a 412×915, `e2e/cocina.spec.ts`, que abre al mozo y a la
   cocina a la vez, `e2e/caja.spec.ts` con el turno de caja completo, `e2e/delivery.spec.ts` con
-  los pedidos por teléfono y `e2e/admin.spec.ts` con la administración). **No tocan la base de desarrollo**: Playwright levanta su
+  los pedidos por teléfono, `e2e/admin.spec.ts` con la administración y
+  `e2e/sin-cocina.spec.ts` con las bebidas que no pasan por cocina, el teclado
+  de cantidad y la cuenta de la mesa; deja capturas a 412×915 en
+  `test-results/…/capturas/`). `e2e/cocina.spec.ts` pone las bebidas a pasar
+  por cocina mientras dura, para probar el panel con dos áreas. **No tocan la base de desarrollo**: Playwright levanta su
   propio backend (`npm run e2e:servidor` en `backend/`, puerto 3100, base
   `comandas_e2e` con migraciones y seed en cada corrida) y su propio Vite
   (puerto 5183). Solo hace falta el contenedor de Postgres.

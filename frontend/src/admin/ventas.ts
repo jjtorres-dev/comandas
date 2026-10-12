@@ -1,7 +1,7 @@
 // Arma lo que muestra la pestaña Ventas a partir del reporte del servidor.
 // Funciones puras: aquí no se suma dinero, solo se le da forma.
 import { plural, soles } from "../lib/formato";
-import type { Correccion, MetodoPago, Reporte, TipoPedido, Turno } from "../lib/tipos";
+import type { Cancelacion, Correccion, MetodoPago, Reporte, TipoPedido, Turno } from "../lib/tipos";
 import { nombreDeMetodo } from "../local/dinero";
 import { fechaCorta, fechaLarga, mesAbreviado, nombreDeMes } from "./periodos";
 
@@ -76,6 +76,12 @@ export function cierreDe(turno: Turno): { estado: "abierto" | "cuadro" | "falto"
   const diferencia = Number(turno.diferencia);
   if (diferencia === 0) return { estado: "cuadro", texto: "Cuadró" };
   return diferencia < 0 ? { estado: "falto", texto: `Faltaron ${soles(-diferencia)}` } : { estado: "sobro", texto: `Sobraron ${soles(diferencia)}` };
+}
+
+// "Quitó 1 Cerveza Pilsen (S/ 9.00) de Mesa 3, pedido 12"
+export function cancelacionEnPalabras(c: Cancelacion): string {
+  const donde = c.pedido.mesa ?? (c.pedido.tipo === "DELIVERY" ? "un delivery" : "un para llevar");
+  return `Quitó ${c.cantidad} ${c.nombreProducto} (${soles(c.monto)}) de ${donde}, pedido ${c.pedido.numero}`;
 }
 
 export function correccionEnPalabras(c: Correccion): string {

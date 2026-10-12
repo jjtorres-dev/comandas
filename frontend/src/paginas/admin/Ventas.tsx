@@ -2,11 +2,11 @@ import { CheckCircleIcon, HourglassMediumIcon, WarningIcon } from "@phosphor-ico
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { fechaConMes, hoyEnLima, type Periodo, PERIODOS, periodoEnPalabras, rangoDe, sumarDias } from "../../admin/periodos";
-import { cierreDe, correccionEnPalabras, minutosEnPalabras, pedidosPorHora, platosMasPedidos, porMetodo, porTipo, ventasPorDia } from "../../admin/ventas";
+import { cancelacionEnPalabras, cierreDe, correccionEnPalabras, minutosEnPalabras, pedidosPorHora, platosMasPedidos, porMetodo, porTipo, ventasPorDia } from "../../admin/ventas";
 import { ErrorDeCarga, Esqueleto } from "../../componentes/EstadoDeCarga";
 import { consultaReporte } from "../../lib/consultas";
 import { horaDe, plural, soles, useAhora } from "../../lib/formato";
-import type { Reporte, Turno } from "../../lib/tipos";
+import type { Cancelacion, Reporte, Turno } from "../../lib/tipos";
 import { Barras, Cifra, Columnas } from "./graficos";
 import { Tarjeta } from "./piezas";
 
@@ -193,6 +193,8 @@ function Contenido({ reporte, hoy }: { reporte: Reporte; hoy: string }) {
           </ul>
         </Tarjeta>
       )}
+
+      {reporte.cancelaciones.length > 0 && <Quitados cancelaciones={reporte.cancelaciones} />}
     </>
   );
 }
@@ -226,5 +228,42 @@ function FilaTurno({ turno }: { turno: Turno }) {
         {cierre.texto}
       </p>
     </li>
+  );
+}
+
+// Cuántos quitados se muestran de entrada: en un mes la lista puede ser larga
+const QUITADOS_A_LA_VISTA = 8;
+
+// Lo que alguien quitó de un pedido ya anotado: la auditoría del dueño
+function Quitados({ cancelaciones }: { cancelaciones: Cancelacion[] }) {
+  const [todos, setTodos] = useState(false);
+  const visibles = todos ? cancelaciones : cancelaciones.slice(0, QUITADOS_A_LA_VISTA);
+
+  return (
+    <Tarjeta>
+      <h2 className="text-2xl font-bold text-tinta">Platos y bebidas quitados</h2>
+      <p className="mb-3 text-base text-marino">Lo que alguien quitó de un pedido ya anotado, con quién lo hizo y cuándo</p>
+      <ul aria-label="Platos y bebidas quitados" className="divide-y-2 divide-borde">
+        {visibles.map((c) => (
+          <li key={c.id} className="py-3">
+            <p className="text-lg font-bold text-pretty text-tinta">{cancelacionEnPalabras(c)}</p>
+            {c.yaEntregado && <p className="text-lg text-pretty text-marino">Ya estaba en la mesa cuando se quitó.</p>}
+            <p className="text-base text-marino">
+              {c.usuario ?? "Sin registro de quién"} · {fechaConMes(hoyEnLima(Date.parse(c.canceladoEn)))}, {horaDe(c.canceladoEn)}
+            </p>
+          </li>
+        ))}
+      </ul>
+      {cancelaciones.length > QUITADOS_A_LA_VISTA && (
+        <button
+          type="button"
+          aria-expanded={todos}
+          onClick={() => setTodos(!todos)}
+          className="presionable mt-2 min-h-12 cursor-pointer rounded-control px-2 text-lg font-bold text-marino underline decoration-2 underline-offset-4 hover:bg-primario-suave"
+        >
+          {todos ? "Ver solo los últimos" : `Ver los ${cancelaciones.length}`}
+        </button>
+      )}
+    </Tarjeta>
   );
 }

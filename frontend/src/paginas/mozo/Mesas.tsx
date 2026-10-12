@@ -11,18 +11,19 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { ErrorDeCarga, Esqueleto } from "../../componentes/EstadoDeCarga";
 import { PildoraEstado } from "../../componentes/PildoraEstado";
-import { consultaMesas, consultaPedidosActivos } from "../../lib/consultas";
+import { consultaCarta, consultaMesas, consultaPedidosActivos } from "../../lib/consultas";
+import { conteoDeProductos } from "../../lib/conteo";
 import { haceCuanto, plural, soles, useAhora } from "../../lib/formato";
 import type { Mesa } from "../../lib/tipos";
 import { useCambio } from "../../lib/useCambio";
 import { abrirCola, type Borrador, claveParaLlevar, type Envio, esParaLlevar, useMozo } from "../../mozo/almacen";
-import { cantidadTotal } from "../../mozo/lineas";
 import { listosDe } from "../../mozo/useAvisosListo";
 
 export function Mesas() {
   const mesas = useQuery(consultaMesas);
   const { data: pedidos = [] } = useQuery(consultaPedidosActivos);
   const { borradores, cola } = useMozo();
+  const { data: carta } = useQuery(consultaCarta);
   const ahora = useAhora();
 
   // Platos listos por mesa, sea de quien sea el pedido
@@ -61,7 +62,7 @@ export function Mesas() {
                   <NotePencilIcon aria-hidden="true" weight="bold" className="size-6 shrink-0" />
                   <span className="min-w-0 flex-1">
                     Para llevar{borrador.cliente.trim() ? ` · ${borrador.cliente.trim()}` : ""}: falta enviar ·{" "}
-                    {plural(cantidadTotal(borrador.lineas), "plato", "platos")}
+                    {conteoDeProductos(borrador.lineas, carta)}
                   </span>
                   <CaretRightIcon aria-hidden="true" weight="bold" className="size-5 shrink-0" />
                 </Link>
@@ -80,6 +81,7 @@ export function Mesas() {
                   mesa={mesa}
                   listos={listosPorMesa.get(mesa.id) ?? 0}
                   borrador={borradores[`mesa-${mesa.id}`]}
+                  porEnviar={conteoDeProductos(borradores[`mesa-${mesa.id}`]?.lineas ?? [], carta)}
                   envio={cola.find((e) => e.clave === `mesa-${mesa.id}`)}
                   ahora={ahora}
                 />
@@ -134,12 +136,13 @@ export function Mesas() {
   );
 }
 
-type PropsBaldosa = { mesa: Mesa; listos: number; borrador?: Borrador; envio?: Envio; ahora: number };
+// porEnviar: lo anotado sin enviar, ya contado ("2 platos · 6 bebidas")
+type PropsBaldosa = { mesa: Mesa; listos: number; borrador?: Borrador; porEnviar: string; envio?: Envio; ahora: number };
 
 const BASE = "presionable flex min-h-32 w-full flex-col justify-between gap-2 rounded-panel p-4 text-left";
 
 // Una mesa en la grilla. El orden nunca cambia: el mozo las ubica de memoria.
-function Baldosa({ mesa, listos, borrador, envio, ahora }: PropsBaldosa) {
+function Baldosa({ mesa, listos, borrador, porEnviar, envio, ahora }: PropsBaldosa) {
   const nombre = <span className="text-2xl leading-tight font-bold text-tinta">{mesa.nombre}</span>;
   const pedido = mesa.pedido;
   // Solo se anima cuando los platos pasan a listos con la grilla a la vista
@@ -206,7 +209,7 @@ function Baldosa({ mesa, listos, borrador, envio, ahora }: PropsBaldosa) {
         {nombre}
         <span className="flex items-start gap-1.5 text-lg leading-tight font-bold text-marino">
           <NotePencilIcon aria-hidden="true" weight="bold" className="size-6 shrink-0" />
-          Falta enviar · {plural(cantidadTotal(borrador.lineas), "plato", "platos")}
+          Falta enviar · {porEnviar}
         </span>
       </Link>
     );

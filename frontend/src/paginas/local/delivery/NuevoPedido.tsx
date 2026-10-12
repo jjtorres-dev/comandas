@@ -9,7 +9,7 @@ import type { Carta, ClienteGuardado, Pedido, TipoPedido } from "../../../lib/ti
 import { celular } from "../../../local/delivery";
 import { centimos, leerMonto, paraApi, soles } from "../../../local/dinero";
 import { faltaEnPago, PAGO_VACIO, type PagoElegido, pagoParaApi } from "../../../local/pagoPrevisto";
-import { agregar, comoItems, type Linea, lineaDe, unir } from "../../../mozo/lineas";
+import { agregar, comoItems, type Linea, lineaDe, unir, vaACocina } from "../../../mozo/lineas";
 import { nuevoId } from "../../../mozo/uuid";
 import { useConexion } from "../../../tiempo-real/contexto";
 import { BuscadorDeCarta } from "./BuscadorDeCarta";
@@ -400,7 +400,8 @@ export function NuevoPedido({ carta, alTerminar }: Props) {
               className="presionable inline-flex min-h-18 cursor-pointer items-center justify-center gap-3 rounded-control bg-primario px-4 text-2xl font-bold text-tinta hover:bg-primario-presionado disabled:cursor-not-allowed disabled:border-2 disabled:border-borde-fuerte disabled:bg-fondo disabled:text-marino"
             >
               <PaperPlaneRightIcon aria-hidden="true" weight="fill" className="size-7 shrink-0" />
-              Enviar a cocina
+              {/* Solo bebidas: no hay nada que enviarle a la cocina */}
+              {vaACocina(lineas, carta) ? "Enviar a cocina" : "Anotar en la cuenta"}
             </button>
             <p aria-live="polite" className="min-h-7 text-center text-lg font-bold text-marino">
               {falta ?? "Ctrl + Enter para enviar"}

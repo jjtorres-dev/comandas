@@ -4,6 +4,7 @@ import { conflicto, noEncontrado, sinPermiso, solicitudInvalida } from "../../li
 import { prisma, type Tx } from "../../lib/prisma.js";
 import { inicioDelDia } from "../../lib/tiempo.js";
 import type { Sesion } from "../../middlewares/auth.js";
+import { unidadesPagadas } from "../pagos/pagos.service.js";
 import {
   bloquearNegocio,
   bloquearPedido,
@@ -42,6 +43,7 @@ async function prepararItems(tx: Tx, negocioId: string, items: ItemEntrada[]) {
     include: {
       producto: {
         include: {
+          area: { select: { pasaPorCocina: true } },
           opcionesCombo: {
             where: { producto: { negocioId, activo: true } },
             include: { producto: { select: { id: true, nombre: true } } },
@@ -88,6 +90,8 @@ async function prepararItems(tx: Tx, negocioId: string, items: ItemEntrada[]) {
     return {
       varianteId: variante.id,
       areaId: producto.areaId,
+      // Copia: si el dueño cambia el área después, este item no cambia
+      pasaPorCocina: producto.area.pasaPorCocina,
       cantidad: item.cantidad,
       nombreProducto:
         variante.nombre === VARIANTE_UNICA ? producto.nombre : `${producto.nombre} — ${variante.nombre}`,
@@ -98,17 +102,30 @@ async function prepararItems(tx: Tx, negocioId: string, items: ItemEntrada[]) {
   });
 }
 
-// Agrega una ronda al final de la comanda, respetando el orden en que llegó
+// Agrega una ronda al final de la comanda, respetando el orden en que llegó.
+// Lo que no pasa por cocina (bebidas) lo saca el mozo: en MESA nace ENTREGADO;
+// en PARA_LLEVAR y DELIVERY nace LISTO, porque todavía hay que meterlo en la bolsa.
 async function insertarRonda(
   tx: Tx,
-  pedidoId: string,
+  pedido: { id: string; tipo: TipoPedido },
   idRonda: string,
   filas: Awaited<ReturnType<typeof prepararItems>>,
 ) {
-  const ultimo = await tx.pedidoItem.aggregate({ where: { pedidoId }, _max: { orden: true } });
+  const ultimo = await tx.pedidoItem.aggregate({ where: { pedidoId: pedido.id }, _max: { orden: true } });
   const base = ultimo._max.orden ?? 0;
+  const ahora = new Date();
+  const sinCocina =
+    pedido.tipo === TipoPedido.MESA
+      ? { estado: EstadoItem.ENTREGADO, listoEn: ahora, entregadoEn: ahora }
+      : { estado: EstadoItem.LISTO, listoEn: ahora };
   await tx.pedidoItem.createMany({
-    data: filas.map((fila, i) => ({ ...fila, pedidoId, idRonda, orden: base + i + 1 })),
+    data: filas.map((fila, i) => ({
+      ...fila,
+      ...(fila.pasaPorCocina ? {} : sinCocina),
+      pedidoId: pedido.id,
+      idRonda,
+      orden: base + i + 1,
+    })),
   });
 }
 
@@ -236,7 +253,7 @@ export async function crearPedido(
       },
     });
     // La primera ronda se identifica con el idCliente del pedido
-    await insertarRonda(tx, pedido.id, datos.idCliente, filas);
+    await insertarRonda(tx, pedido, datos.idCliente, filas);
     await recalcularTapers(tx, pedido.id);
     await recalcular(tx, pedido.id);
 
@@ -270,7 +287,7 @@ export async function agregarItems(
     if (pedido.pagado) throw conflicto("PEDIDO_PAGADO", "El pedido ya está pagado. Crea un pedido nuevo");
 
     const filas = await prepararItems(tx, negocioId, datos.items);
-    await insertarRonda(tx, pedidoId, datos.idRonda, filas);
+    await insertarRonda(tx, pedido, datos.idRonda, filas);
     // La nota de la ronda se agrega a la del pedido (un pedido que el mozo
     // anotó como nuevo y entró como ronda no pierde su nota general)
     if (datos.nota && datos.nota !== pedido.nota) {
@@ -341,22 +358,32 @@ export async function cambiarEstadoItems(sesion: Sesion, pedidoId: string, datos
 }
 
 // Cambia el estado de los items que cumplen el filtro y lleva la cuenta de
-// cuándo quedó listo cada uno (`listoEn`)
+// cuándo quedó listo (`listoEn`) y cuándo se entregó (`entregadoEn`) cada uno
 async function fijarEstado(tx: Tx, where: Prisma.PedidoItemWhereInput, estado: EstadoItem) {
   if (estado === EstadoItem.PENDIENTE || estado === EstadoItem.PREPARANDO) {
     // Volvió a la cocina: ya no está listo
-    await tx.pedidoItem.updateMany({ where, data: { estado, listoEn: null } });
+    await tx.pedidoItem.updateMany({ where, data: { estado, listoEn: null, entregadoEn: null } });
     return;
   }
   // LISTO o ENTREGADO: los que ya tenían hora la conservan (entregar un plato
   // listo, o deshacer esa entrega, no lo vuelve "recién listo"); el resto queda listo ahora
   const ids = (await tx.pedidoItem.findMany({ where, select: { id: true } })).map((i) => i.id);
-  await tx.pedidoItem.updateMany({ where: { id: { in: ids }, listoEn: null }, data: { listoEn: new Date() } });
-  await tx.pedidoItem.updateMany({ where: { id: { in: ids } }, data: { estado } });
+  const ahora = new Date();
+  await tx.pedidoItem.updateMany({ where: { id: { in: ids }, listoEn: null }, data: { listoEn: ahora } });
+  if (estado === EstadoItem.ENTREGADO) {
+    await tx.pedidoItem.updateMany({ where: { id: { in: ids }, entregadoEn: null }, data: { entregadoEn: ahora } });
+  }
+  await tx.pedidoItem.updateMany({
+    where: { id: { in: ids } },
+    data: { estado, ...(estado === EstadoItem.LISTO ? { entregadoEn: null } : {}) },
+  });
 }
 
-// Solo items PENDIENTES, salvo que quien cancela sea ADMIN. Recalcula los totales.
-export async function cancelarItem(sesion: Sesion, pedidoId: string, itemId: string) {
+// Cancela un item, o solo `cantidad` de sus unidades (el item se divide: las
+// canceladas quedan en una fila aparte). Cualquiera cancela lo PENDIENTE y lo
+// que no pasa por cocina (el mozo devuelve la bebida a la refrigeradora); lo
+// que la cocina ya empezó, solo ADMIN. Queda registrado quién y cuándo.
+export async function cancelarItem(sesion: Sesion, pedidoId: string, itemId: string, cantidad?: number) {
   const actualizado = await prisma.$transaction(async (tx) => {
     const pedido = await bloquearPedido(tx, sesion.negocioId, pedidoId);
     exigirNoCancelado(pedido);
@@ -365,14 +392,37 @@ export async function cancelarItem(sesion: Sesion, pedidoId: string, itemId: str
     const item = await tx.pedidoItem.findFirst({ where: { id: itemId, pedidoId } });
     if (!item) throw noEncontrado("El item no existe en este pedido");
     if (item.estado === EstadoItem.CANCELADO) throw conflicto("ITEM_CANCELADO", "El item ya está cancelado");
-    if (item.estado !== EstadoItem.PENDIENTE && !sesion.roles.includes(Rol.ADMIN)) {
+    const aCancelar = cantidad ?? item.cantidad;
+    if (aCancelar > item.cantidad) {
+      throw solicitudInvalida(`Ese item solo tiene ${item.cantidad} ${item.cantidad === 1 ? "unidad" : "unidades"}`);
+    }
+    const cocinaYaEmpezo = item.pasaPorCocina && item.estado !== EstadoItem.PENDIENTE;
+    if (cocinaYaEmpezo && !sesion.roles.includes(Rol.ADMIN)) {
       throw sinPermiso("El item ya está en preparación: solo el administrador puede cancelarlo");
     }
-    if ((await tx.pago.count({ where: { pedidoId, anuladoEn: null, itemIds: { has: itemId } } })) > 0) {
-      throw conflicto("ITEM_PAGADO", "El item ya fue cobrado y no se puede cancelar");
+    // Lo ya cobrado en una cuenta dividida no se cancela
+    const pagos = await tx.pago.findMany({
+      where: { pedidoId, anuladoEn: null, itemIds: { has: itemId } },
+      select: { grupoId: true, itemIds: true, unidades: true, anuladoEn: true },
+    });
+    const sinPagar = item.cantidad - (unidadesPagadas([item], pagos).get(item.id) ?? 0);
+    if (aCancelar > sinPagar) {
+      throw conflicto(
+        "ITEM_PAGADO",
+        sinPagar === 0 ? "El item ya fue cobrado y no se puede cancelar" : `Solo ${sinPagar} de esas unidades siguen sin cobrar`,
+      );
     }
 
-    await tx.pedidoItem.update({ where: { id: itemId }, data: { estado: EstadoItem.CANCELADO } });
+    const cancelacion = { estado: EstadoItem.CANCELADO, canceladoEn: new Date(), canceladoPorId: sesion.usuarioId };
+    if (aCancelar === item.cantidad) {
+      await tx.pedidoItem.update({ where: { id: itemId }, data: cancelacion });
+    } else {
+      // Cancelación parcial: el item original conserva su id (y sus pagos) con
+      // las unidades que quedan; las canceladas van a una fila gemela
+      const { id: _id, ...gemelo } = item;
+      await tx.pedidoItem.update({ where: { id: itemId }, data: { cantidad: item.cantidad - aCancelar } });
+      await tx.pedidoItem.create({ data: { ...gemelo, cantidad: aCancelar, ...cancelacion } });
+    }
     await recalcularTapers(tx, pedidoId);
     await recalcular(tx, pedidoId);
     return obtenerCompleto(tx, pedidoId);
@@ -538,7 +588,7 @@ export async function cancelarPedido(sesion: Sesion, pedidoId: string, motivo: s
       throw conflicto("PEDIDO_CON_PAGOS", "El pedido tiene un pago registrado. Anúlalo en Caja antes de cancelar el pedido");
     }
 
-    await tx.pedidoItem.updateMany({ where: { pedidoId }, data: { estado: EstadoItem.CANCELADO, listoEn: null } });
+    await tx.pedidoItem.updateMany({ where: { pedidoId }, data: { estado: EstadoItem.CANCELADO, listoEn: null, entregadoEn: null } });
     await tx.pedido.update({ where: { id: pedidoId }, data: { motivoCancelacion: motivo } });
     await recalcularTapers(tx, pedidoId);
     await recalcular(tx, pedidoId);
@@ -570,8 +620,9 @@ export async function cambiarEstadoPedido(
         throw conflicto("PEDIDO_CON_PAGOS", "Ya se cobró después de la entrega: no se puede deshacer");
       }
       await tx.pedidoItem.updateMany({
-        where: { pedidoId, estado: EstadoItem.ENTREGADO },
-        data: { estado: EstadoItem.LISTO },
+        // En mesa, lo que no pasa por cocina nació entregado: se queda así
+        where: { pedidoId, estado: EstadoItem.ENTREGADO, ...(pedido.tipo === TipoPedido.MESA ? { pasaPorCocina: true } : {}) },
+        data: { estado: EstadoItem.LISTO, entregadoEn: null },
       });
       await tx.pedido.update({ where: { id: pedidoId }, data: { estado: destino } });
       await recalcular(tx, pedidoId);
@@ -600,10 +651,9 @@ export async function cambiarEstadoPedido(
       if (pedido.estado !== EstadoPedido.LISTO && pedido.estado !== EstadoPedido.EN_CAMINO) {
         throw conflicto("PEDIDO_NO_LISTO", "Todavía hay items sin terminar: no se puede marcar como entregado");
       }
-      await tx.pedidoItem.updateMany({
-        where: { pedidoId, estado: { not: EstadoItem.CANCELADO } },
-        data: { estado: EstadoItem.ENTREGADO },
-      });
+      const vivos = { pedidoId, estado: { not: EstadoItem.CANCELADO } };
+      await tx.pedidoItem.updateMany({ where: { ...vivos, entregadoEn: null }, data: { entregadoEn: new Date() } });
+      await tx.pedidoItem.updateMany({ where: vivos, data: { estado: EstadoItem.ENTREGADO } });
       await recalcular(tx, pedidoId);
     }
 

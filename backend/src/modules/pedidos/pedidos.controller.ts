@@ -3,6 +3,7 @@ import { sesionDe } from "../../middlewares/auth.js";
 import {
   esquemaAgregarItems,
   esquemaCambiarEstado,
+  esquemaCancelarItem,
   esquemaCancelarPedido,
   esquemaCargos,
   esquemaCrearPedido,
@@ -42,7 +43,9 @@ export async function cambiarEstadoItems(req: Request, res: Response) {
 
 export async function cancelarItem(req: Request, res: Response) {
   const { id, itemId } = esquemaParamsItem.parse(req.params);
-  res.json({ pedido: await servicio.cancelarItem(sesionDe(req), id, itemId) });
+  // La ruta se puede llamar sin cuerpo: cancela el item entero
+  const { cantidad } = esquemaCancelarItem.parse(req.body ?? {});
+  res.json({ pedido: await servicio.cancelarItem(sesionDe(req), id, itemId, cantidad) });
 }
 
 export async function actualizarCargos(req: Request, res: Response) {

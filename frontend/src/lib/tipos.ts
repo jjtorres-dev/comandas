@@ -45,8 +45,9 @@ export type Categoria = { id: string; nombre: string; productos: Producto[] };
 
 export type NotaRapida = { id: string; texto: string };
 
-// Área de preparación (cocina, bebidas…)
-export type Area = { id: string; nombre: string };
+// Área de preparación (cocina, bebidas…). Lo de un área que no pasa por cocina
+// lo saca el mozo: no sale en el panel de cocina
+export type Area = { id: string; nombre: string; pasaPorCocina: boolean };
 
 // Lo que hace falta para tomar un pedido por teléfono y decirle el total al cliente
 export type Reparto = { costoEnvioDefault: string; precioTaper: string; distritos: string[]; region: string | null };
@@ -77,6 +78,10 @@ export type ItemPedido = {
   creadoEn: string;
   // Cuándo se marcó LISTO (null si todavía no)
   listoEn: string | null;
+  entregadoEn: string | null;
+  // false: lo sacó el mozo (bebidas). Nació entregado (mesa) o listo (para
+  // llevar y delivery) y la cocina no lo ve
+  pasaPorCocina: boolean;
 };
 
 export type Pedido = {
@@ -279,6 +284,20 @@ export type Correccion = {
   pedido: { id: string; numero: number };
 };
 
+// Un plato o una bebida que alguien quitó de un pedido ya enviado
+export type Cancelacion = {
+  id: string;
+  nombreProducto: string;
+  cantidad: number;
+  monto: string;
+  canceladoEn: string;
+  usuario: string | null;
+  pasaPorCocina: boolean;
+  // Ya estaba en la mesa cuando se quitó
+  yaEntregado: boolean;
+  pedido: { id: string; numero: number; tipo: TipoPedido; mesa: string | null };
+};
+
 export type Reporte = {
   desde: string;
   hasta: string;
@@ -298,4 +317,5 @@ export type Reporte = {
   cocina: { promedioMin: number | null; platos: number; porArea: { area: string; promedioMin: number | null; platos: number }[] };
   turnos: Turno[];
   correcciones: Correccion[];
+  cancelaciones: Cancelacion[];
 };

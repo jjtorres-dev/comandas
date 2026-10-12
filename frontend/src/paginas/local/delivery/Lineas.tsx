@@ -1,10 +1,11 @@
 import { MinusIcon, NotePencilIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react";
 import { useState } from "react";
+import { BotonCantidad, HojaCantidad } from "../../../componentes/pedido/HojaCantidad";
 import { HojaNotas } from "../../../componentes/pedido/HojaNotas";
 import { platosDeCombo } from "../../../lib/formato";
 import type { NotaRapida } from "../../../lib/tipos";
 import { soles } from "../../../local/dinero";
-import { cambiarCantidad, type Linea, ponerNotas } from "../../../mozo/lineas";
+import { cambiarCantidad, type Linea, ponerCantidad, ponerNotas } from "../../../mozo/lineas";
 
 type Props = { lineas: Linea[]; alCambiar: (lineas: Linea[]) => void; notasRapidas: NotaRapida[]; vacio: string };
 
@@ -14,6 +15,7 @@ const CUADRADO = "presionable grid size-12 shrink-0 cursor-pointer place-items-c
 // líneas (y la misma hoja de notas) que el resumen del mozo
 export function Lineas({ lineas, alCambiar, notasRapidas, vacio }: Props) {
   const [conNotas, setConNotas] = useState<Linea | null>(null);
+  const [conCantidad, setConCantidad] = useState<Linea | null>(null);
 
   if (lineas.length === 0) {
     return <p className="rounded-control border-2 border-dashed border-borde-fuerte px-4 py-5 text-center text-lg text-texto-suave">{vacio}</p>;
@@ -57,9 +59,7 @@ export function Lineas({ lineas, alCambiar, notasRapidas, vacio }: Props) {
               >
                 {linea.cantidad === 1 ? <TrashIcon aria-hidden="true" weight="bold" className="size-6" /> : <MinusIcon aria-hidden="true" weight="bold" className="size-6" />}
               </button>
-              <span aria-label={`Cantidad: ${linea.cantidad}`} className="w-8 text-center text-2xl font-bold text-tinta tabular-nums">
-                {linea.cantidad}
-              </span>
+              <BotonCantidad cantidad={linea.cantidad} de={linea.nombre} onClick={() => setConCantidad(linea)} />
               <button
                 type="button"
                 onClick={() => alCambiar(cambiarCantidad(lineas, linea.id, 1))}
@@ -72,6 +72,14 @@ export function Lineas({ lineas, alCambiar, notasRapidas, vacio }: Props) {
           </li>
         ))}
       </ul>
+      <HojaCantidad
+        de={conCantidad && { nombre: conCantidad.nombre, cantidad: conCantidad.cantidad }}
+        alCerrar={() => setConCantidad(null)}
+        alGuardar={(cantidad) => {
+          if (conCantidad) alCambiar(ponerCantidad(lineas, conCantidad.id, cantidad));
+          setConCantidad(null);
+        }}
+      />
       <HojaNotas
         linea={conNotas}
         notasRapidas={notasRapidas}

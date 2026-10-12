@@ -17,6 +17,7 @@ import { useMemo, useState } from "react";
 import { BarraDeshacer } from "../../componentes/BarraDeshacer";
 import { ErrorDeCarga, Esqueleto } from "../../componentes/EstadoDeCarga";
 import { consultaCarta, consultaPedidosActivos } from "../../lib/consultas";
+import { conteoDeItems } from "../../lib/conteo";
 import { haceCuanto, platosDeCombo, plural, useAhora } from "../../lib/formato";
 import type { ItemPedido, Pedido } from "../../lib/tipos";
 import { cerrarDeshacer, deshacer, marcar, useDeshacer, useOcupado } from "../../local/acciones";
@@ -419,8 +420,7 @@ function RecienListos({ listos, ahora }: { listos: Listo[]; ahora: number }) {
         <CaretDownIcon aria-hidden="true" weight="bold" className={`size-6 shrink-0 xl:hidden ${abierto ? "rotate-180" : ""}`} />
       </summary>
       <ul className="flex flex-col gap-3 px-3 pb-3">
-        {listos.slice(0, MAXIMO_LISTOS).map(({ pedido, items, listoEn }) => {
-          const platos = items.reduce((suma, i) => suma + i.cantidad, 0);
+        {listos.slice(0, MAXIMO_LISTOS).map(({ pedido, items, conEllos, listoEn }) => {
           return (
             <li key={pedido.id} className="flex flex-col gap-3 rounded-control border-2 border-borde bg-superficie p-3">
               <div>
@@ -428,7 +428,7 @@ function RecienListos({ listos, ahora }: { listos: Listo[]; ahora: number }) {
                   #{pedido.numero} · {nombreDeTipo(pedido)}
                 </p>
                 <p className="text-lg text-texto-suave lg:text-xl">
-                  {plural(platos, "plato", "platos")} · listo {haceCuanto(listoEn, ahora)}
+                  {conteoDeItems(items)} · listo {haceCuanto(listoEn, ahora)}
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -446,7 +446,7 @@ function RecienListos({ listos, ahora }: { listos: Listo[]; ahora: number }) {
                   type="button"
                   disabled={ocupado}
                   aria-label={`Entregado el pedido ${pedido.numero}`}
-                  onClick={() => void marcar(pedido, items, "ENTREGADO", `Pedido ${pedido.numero}: entregado`)}
+                  onClick={() => void marcar(pedido, [...items, ...conEllos], "ENTREGADO", `Pedido ${pedido.numero}: entregado`)}
                   className={`${CONTORNO} min-h-14 px-2 text-lg`}
                 >
                   <CheckIcon aria-hidden="true" weight="bold" className="size-6 shrink-0" />

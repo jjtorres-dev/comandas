@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
-import { boton, cancelarTodo, entrarComoMozo, type Mesa, mesasLibres, pedidoDeMesa, tokenDe } from "./ayudas";
+import { type APIRequestContext } from "@playwright/test";
+import { boton, cancelarTodo, con, entrarComoMozo, type Mesa, mesasLibres, pedidoDeMesa, tokenDe } from "./ayudas";
 
 // La cocina y el mozo a la vez: el mozo crea un pedido con combo, notas y una
 // ronda; cocina lo ve llegar (con su aviso), marca Empezar y Listo, usa
@@ -7,11 +8,24 @@ import { boton, cancelarTodo, entrarComoMozo, type Mesa, mesasLibres, pedidoDeMe
 
 let mesa: Mesa;
 
+// Estas pruebas son de un local donde las bebidas también se preparan (dos
+// áreas en el panel). El de la base de pruebas las saca el mozo: se cambia
+// mientras duran y se deja como estaba. Lo que no pasa por cocina tiene su
+// propia prueba en sin-cocina.spec.ts.
+async function bebidasPorCocina(api: APIRequestContext, pasaPorCocina: boolean) {
+  const token = con(await tokenDe(api, "admin", "admin123"));
+  const { areas } = (await (await api.get("/api/admin/carta", token)).json()) as { areas: { id: string; nombre: string }[] };
+  const bebidas = areas.find((a) => a.nombre === "Bebidas")!;
+  expect((await api.patch(`/api/admin/areas/${bebidas.id}`, { ...token, data: { pasaPorCocina } })).status()).toBe(204);
+}
+
 test.beforeAll(async ({ request }) => {
   [mesa] = await mesasLibres(request, 1);
+  await bebidasPorCocina(request, true);
 });
 
 test.afterAll(async ({ request }) => {
+  await bebidasPorCocina(request, false);
   if (!mesa) return;
   const token = await tokenDe(request, "admin", "admin123");
   await cancelarTodo(request, token, await pedidoDeMesa(request, token, mesa.id));

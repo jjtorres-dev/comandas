@@ -59,7 +59,7 @@ export async function obtenerCarta(negocioId: string) {
       })),
     })),
     notasRapidas: notasRapidas.map((n) => ({ id: n.id, texto: n.texto })),
-    areas: areas.map((a) => ({ id: a.id, nombre: a.nombre })),
+    areas: areas.map((a) => ({ id: a.id, nombre: a.nombre, pasaPorCocina: a.pasaPorCocina })),
     // Para tomar un pedido por teléfono: lo que hace falta para decirle el total al cliente
     reparto: {
       costoEnvioDefault: dinero(negocio.costoEnvioDefault),

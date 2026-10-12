@@ -1,4 +1,4 @@
-import { CheckIcon, CloudArrowUpIcon, MinusIcon, NotePencilIcon, PaperPlaneRightIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react";
+import { CheckIcon, CloudArrowUpIcon, MinusIcon, NotePencilIcon, PaperPlaneRightIcon, PlusIcon, ReceiptIcon, TrashIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useId, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router";
@@ -6,13 +6,15 @@ import { toast } from "sonner";
 import { Boton } from "../../componentes/Boton";
 import { CabeceraPantalla } from "../../componentes/CabeceraPantalla";
 import { Campo } from "../../componentes/Campo";
+import { BotonCantidad, HojaCantidad } from "../../componentes/pedido/HojaCantidad";
 import { HojaNotas } from "../../componentes/pedido/HojaNotas";
 import { consultaCarta } from "../../lib/consultas";
-import { platosDeCombo, plural, soles } from "../../lib/formato";
+import { conteoDeProductos } from "../../lib/conteo";
+import { platosDeCombo, soles } from "../../lib/formato";
 import { useEspacioAvisos } from "../../lib/useEspacioAvisos";
 import { editarBorrador, enviar, leerBorrador, useMozo } from "../../mozo/almacen";
 import { FranjaCola } from "../../mozo/FranjaCola";
-import { agregar, cambiarCantidad, cantidadTotal, type Linea, montoTotal, ponerNotas } from "../../mozo/lineas";
+import { agregar, cambiarCantidad, type Linea, montoTotal, ponerNotas, vaACocina } from "../../mozo/lineas";
 import { usePedidoEnCurso } from "../../mozo/usePedidoEnCurso";
 import { useConexion } from "../../tiempo-real/contexto";
 import { PantallaSinDestino } from "./TomarPedido";
@@ -23,7 +25,9 @@ export function Resumen() {
   const enCurso = usePedidoEnCurso(clave);
   const { data: carta } = useQuery(consultaCarta);
   const [conNotas, setConNotas] = useState<Linea | null>(null);
-  const [enviado, setEnviado] = useState(false);
+  const [conCantidad, setConCantidad] = useState<Linea | null>(null);
+  // null: nada enviado todavía. Lo enviado recuerda si iba a cocina o solo a la cuenta
+  const [enviado, setEnviado] = useState<{ aCocina: boolean } | null>(null);
   const idNota = useId();
   const barraAvisos = useEspacioAvisos();
   const enLinea = useConexion() === "en-linea";
@@ -40,13 +44,15 @@ export function Resumen() {
     return () => clearTimeout(reloj);
   }, [enviado, enLinea, navegar]);
 
-  if (enviado) return <PantallaEnviado enLinea={enLinea} />;
+  if (enviado) return <PantallaEnviado enLinea={enLinea} aCocina={enviado.aCocina} />;
   if (!destino) return <PantallaSinDestino cargando={enCurso.cargando} />;
   // Al recargar aquí, los borradores del dispositivo tardan un instante en abrirse
   if (!abierto) return <PantallaSinDestino cargando />;
   if (!borrador) return <Navigate to={`/mozo/tomar/${clave}`} replace />;
 
   const lineas = borrador.lineas;
+  // Solo bebidas (o lo que no pase por cocina): no hay nada que enviarle a la cocina
+  const aCocina = vaACocina(lineas, carta);
   const guardar = (nuevas: Linea[]) => editarBorrador(clave, destino, { lineas: nuevas });
 
   function cambiar(linea: Linea, delta: number) {
@@ -121,9 +127,7 @@ export function Resumen() {
                     <MinusIcon aria-hidden="true" weight="bold" className="size-6" />
                   )}
                 </button>
-                <span aria-label={`Cantidad: ${linea.cantidad}`} className="w-9 text-center text-2xl font-bold text-tinta tabular-nums">
-                  {linea.cantidad}
-                </span>
+                <BotonCantidad cantidad={linea.cantidad} de={linea.nombre} onClick={() => setConCantidad(linea)} />
                 <button
                   type="button"
                   onClick={() => cambiar(linea, 1)}
@@ -173,7 +177,7 @@ export function Resumen() {
       <div ref={barraAvisos} className="fixed inset-x-0 bottom-0 z-20 border-t-2 border-borde bg-superficie px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-barra">
         <div className="mx-auto flex max-w-2xl flex-col gap-2.5">
           <p className="flex items-baseline justify-between gap-3 text-xl font-bold text-tinta">
-            <span>Total · {plural(cantidadTotal(lineas), "plato", "platos")}</span>
+            <span>Total · {conteoDeProductos(lineas, carta)}</span>
             <span className="text-2xl tabular-nums">{soles(montoTotal(lineas))}</span>
           </p>
           <Boton
@@ -182,15 +186,31 @@ export function Resumen() {
               // Lo enviado ya no se deshace desde un aviso viejo
               toast.dismiss();
               enviar(clave, pedidoId);
-              setEnviado(true);
+              setEnviado({ aCocina });
             }}
-            icono={<PaperPlaneRightIcon aria-hidden="true" weight="fill" className="size-6" />}
+            icono={
+              aCocina ? (
+                <PaperPlaneRightIcon aria-hidden="true" weight="fill" className="size-6" />
+              ) : (
+                <ReceiptIcon aria-hidden="true" weight="fill" className="size-6" />
+              )
+            }
           >
-            {esRonda ? "Enviar ronda" : "Enviar a cocina"}
+            {!aCocina ? "Anotar en la cuenta" : esRonda ? "Enviar ronda" : "Enviar a cocina"}
           </Boton>
         </div>
       </div>
 
+      <HojaCantidad
+        de={conCantidad && { nombre: conCantidad.nombre, cantidad: conCantidad.cantidad }}
+        alCerrar={() => setConCantidad(null)}
+        alGuardar={(cantidad) => {
+          // La línea pudo cambiar con la hoja abierta: la diferencia se aplica a lo que haya ahora
+          const vigente = conCantidad && lineas.find((l) => l.id === conCantidad.id);
+          if (vigente) cambiar(vigente, cantidad - vigente.cantidad);
+          setConCantidad(null);
+        }}
+      />
       <HojaNotas
         linea={conNotas}
         notasRapidas={carta?.notasRapidas ?? []}
@@ -206,7 +226,7 @@ export function Resumen() {
 
 // Confirmación de un instante. No dice "enviado": eso lo confirma el servidor
 // (aviso "pedido enviado a cocina"). Sin conexión avisa que quedó guardado.
-function PantallaEnviado({ enLinea }: { enLinea: boolean }) {
+function PantallaEnviado({ enLinea, aCocina }: { enLinea: boolean; aCocina: boolean }) {
   const Icono = enLinea ? CheckIcon : CloudArrowUpIcon;
   return (
     <div role="status" className={`grid min-h-dvh place-items-center px-6 text-tinta ${enLinea ? "bg-primario" : "bg-alerta"}`}>
@@ -214,7 +234,7 @@ function PantallaEnviado({ enLinea }: { enLinea: boolean }) {
         <span className="grid size-24 place-items-center rounded-full bg-superficie shadow-plato">
           <Icono aria-hidden="true" weight="bold" className={`size-14 ${enLinea ? "text-primario-profundo" : "text-alerta-fuerte"}`} />
         </span>
-        <p className="text-3xl font-bold text-balance">{enLinea ? "Enviando a cocina" : "Guardado en este celular"}</p>
+        <p className="text-3xl font-bold text-balance">{!enLinea ? "Guardado en este celular" : aCocina ? "Enviando a cocina" : "Anotando en la cuenta"}</p>
         {!enLinea && <p className="max-w-[24ch] text-xl font-bold text-pretty">Se envía solo cuando vuelva la conexión.</p>}
       </div>
     </div>

@@ -16,7 +16,8 @@ import { toast } from "sonner";
 import { Dialogo } from "../../../componentes/Dialogo";
 import { api, mensajeDe } from "../../../lib/api";
 import { claves } from "../../../lib/consultas";
-import { haceCuanto, plural } from "../../../lib/formato";
+import { conteoDeItems } from "../../../lib/conteo";
+import { haceCuanto } from "../../../lib/formato";
 import type { Pedido, Repartidor } from "../../../lib/tipos";
 import { type Columna, COLUMNAS, columnaDe, enlaceWhatsapp, mensajeParaCliente, mensajeParaMotorizado, pagoEnPalabras } from "../../../local/delivery";
 import { centimos, soles } from "../../../local/dinero";
@@ -168,7 +169,7 @@ export function Tablero({ pedidos, repartidores, region, negocio, ahora, alModif
                               ) : (
                                 <p className="text-lg text-marino">Lo recoge en el local</p>
                               )}
-                              <p className="text-lg text-marino">{plural(pedido.items.filter((i) => i.estado !== "CANCELADO").reduce((s, i) => s + i.cantidad, 0), "plato", "platos")}</p>
+                              <p className="text-lg text-marino">{conteoDeItems(pedido.items)}</p>
                             </div>
 
                             {telefono && (

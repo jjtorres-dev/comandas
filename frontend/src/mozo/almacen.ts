@@ -4,7 +4,7 @@
 import { useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { api, ErrorApi } from "../lib/api";
-import { claves, clienteDeConsultas } from "../lib/consultas";
+import { claves, clienteDeConsultas, consultaPedidosActivos } from "../lib/consultas";
 import type { Pedido } from "../lib/tipos";
 import { almacen as sesion } from "../sesion/almacen";
 import { comoItems, type Linea, unir } from "./lineas";
@@ -144,6 +144,15 @@ export function enviar(clave: string, pedidoId: string | null) {
   void procesarCola();
 }
 
+// El "+" de la cuenta de la mesa: unidades sueltas que entran como una ronda,
+// sin pasar por un borrador. Va por la misma cola que todo lo demás.
+export function enviarRonda(clave: string, destino: Destino, pedidoId: string, lineas: Linea[]) {
+  if (lineas.length === 0) return;
+  const envio: Envio = { id: nuevoId(), clave, destino, lineas, nota: "", cliente: "", pedidoId, intentos: 0, estado: "pendiente", conflictoPedidoId: null };
+  cambiar({ cola: [...estado.cola, envio] });
+  void procesarCola();
+}
+
 const actualizarEnvio = (id: string, cambio: Partial<Envio>) =>
   cambiar({ cola: estado.cola.map((e) => (e.id === id ? { ...e, ...cambio } : e)) });
 
@@ -231,17 +240,18 @@ type Resultado = "seguir" | "sin-red" | "despues";
 async function intentar(envio: Envio): Promise<Resultado> {
   const usuarioId = estado.usuarioId;
   const items = comoItems(envio.lineas);
+  let pedido: Pedido;
   try {
     if (envio.pedidoId) {
-      await api<{ pedido: Pedido }>(`/pedidos/${envio.pedidoId}/items`, {
+      ({ pedido } = await api<{ pedido: Pedido }>(`/pedidos/${envio.pedidoId}/items`, {
         metodo: "POST",
         // La nota general de un pedido que entra como ronda se suma a la del pedido abierto
         cuerpo: { idRonda: envio.id, items, ...(envio.nota.trim() ? { nota: envio.nota.trim() } : {}) },
         signal: AbortSignal.timeout(ESPERA_MAXIMA),
-      });
+      }));
     } else {
       const cliente = envio.cliente.trim();
-      await api<{ pedido: Pedido }>("/pedidos", {
+      ({ pedido } = await api<{ pedido: Pedido }>("/pedidos", {
         metodo: "POST",
         signal: AbortSignal.timeout(ESPERA_MAXIMA),
         cuerpo: {
@@ -252,7 +262,7 @@ async function intentar(envio: Envio): Promise<Resultado> {
           ...(envio.nota.trim() ? { nota: envio.nota.trim() } : {}),
           ...(envio.destino.tipo === "PARA_LLEVAR" && cliente ? { cliente: { nombre: cliente } } : {}),
         },
-      });
+      }));
     }
   } catch (causa) {
     // La sesión cambió mientras se esperaba: la cola guardada se retoma al volver a entrar
@@ -260,10 +270,15 @@ async function intentar(envio: Envio): Promise<Resultado> {
     return alFallar(envio, causa);
   }
   if (estado.usuarioId !== usuarioId) return "sin-red";
+  // Lo confirmado se ve antes de que el envío salga de la cola: la cuenta de la mesa no parpadea
+  clienteDeConsultas.setQueryData(consultaPedidosActivos.queryKey, (lista) => lista?.map((p) => (p.id === pedido.id ? pedido : p)));
   quitarEnvio(envio.id);
   void clienteDeConsultas.invalidateQueries({ queryKey: claves.pedidos });
   void clienteDeConsultas.invalidateQueries({ queryKey: claves.mesas });
-  toast.success(`${envio.destino.nombre}: ${envio.pedidoId ? "ronda enviada" : "pedido enviado"} a cocina`, { id: `enviado-${envio.id}` });
+  // Lo que no pasa por cocina (bebidas) no "se envía": ya está en la cuenta
+  const aCocina = pedido.items.some((i) => i.idRonda === envio.id && i.pasaPorCocina);
+  const que = !aCocina ? "anotado en la cuenta" : `${envio.pedidoId ? "ronda enviada" : "pedido enviado"} a cocina`;
+  toast.success(`${envio.destino.nombre}: ${que}`, { id: `enviado-${envio.id}` });
   return "seguir";
 }
 
