@@ -1093,7 +1093,9 @@ cierre.
       "pedido": {
         "id": "…", "numero": 12, "tipo": "MESA",
         "mesa": { "id": "…", "nombre": "Mesa 3" }, "cliente": null,
-        "total": "53.00", "totalPagado": "53.00", "saldoPendiente": "0.00", "pagado": true
+        "subtotal": "53.00", "costoEnvio": "0.00", "cantidadTapers": 0, "cargoTapers": "0.00", "descuento": "0.00",
+        "total": "53.00", "totalPagado": "53.00", "saldoPendiente": "0.00", "pagado": true,
+        "items": [ { "id": "…", "cantidad": 2, "nombreProducto": "Ceviche Simple", "precioUnitario": "20.00", "notas": [], "componentes": [], "pasaPorCocina": true, "…": "…" } ]
       },
       "pagos": [
         { "id": "…", "metodo": "YAPE", "monto": "53.00", "recibido": null, "vuelto": "0.00", "referencia": "OP 1", "itemIds": [], "creadoEn": "…", "anulado": false, "anuladoEn": null, "anuladoPor": null, "motivoAnulacion": null }
@@ -1106,7 +1108,9 @@ cierre.
 
 `pagos` trae solo los de este turno, incluidos los anulados. `totalPagado` y
 `saldoPendiente` son los del pedido completo. `cliente` es `{ nombre, telefono }`
-o `null`.
+o `null`. `pedido.items` es lo consumido, con la misma forma que los items de un
+pedido y **sin los cancelados**; `subtotal`, `costoEnvio`, `cantidadTapers`,
+`cargoTapers` y `descuento` son los cargos del pedido.
 
 ### `POST /api/caja/cerrar`
 

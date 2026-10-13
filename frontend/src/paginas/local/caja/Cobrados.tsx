@@ -6,10 +6,13 @@ import { Dialogo } from "../../../componentes/Dialogo";
 import { ErrorDeCarga, Esqueleto } from "../../../componentes/EstadoDeCarga";
 import { api, mensajeDe } from "../../../lib/api";
 import { claves, clienteDeConsultas, consultaCobrados } from "../../../lib/consultas";
+import { conteoDeItems } from "../../../lib/conteo";
 import { horaDe } from "../../../lib/formato";
 import type { Cobrado, MetodoPago, PagoRegistrado } from "../../../lib/tipos";
 import { centimos, leerMonto, METODOS, nombreDeMetodo, paraApi, soles } from "../../../local/dinero";
 import { TIPOS } from "../../../local/tiposDePedido";
+import { acumular } from "../../../mozo/cuenta";
+import { FilaDeCuenta, Totales } from "./ListaDeCuenta";
 import { NotaDeVenta } from "./NotaDeVenta";
 
 const nombreDe = (c: Cobrado["pedido"]) =>
@@ -63,51 +66,58 @@ export function Cobrados() {
                   <p className="text-2xl font-bold tabular-nums">{soles(centimos(pedido.total))}</p>
                 </header>
 
-                <div className="flex flex-col gap-3 p-4">
-                  {!pedido.pagado && (
-                    <p className="text-xl font-bold text-peligro tabular-nums">Falta cobrar {soles(centimos(pedido.saldoPendiente))}: está en "Por cobrar"</p>
-                  )}
-                  <ul className="flex flex-col divide-y-2 divide-borde">
-                    {pagos.map((pago) => (
-                      <li key={pago.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-2.5">
-                        <div className={`min-w-0 flex-1 ${pago.anulado ? "text-texto-suave" : "text-tinta"}`}>
-                          <p className={`text-xl font-bold tabular-nums ${pago.anulado ? "line-through" : ""}`}>
-                            {nombreDeMetodo(pago.metodo)} {soles(centimos(pago.monto))}
-                            {pago.recibido && centimos(pago.vuelto) > 0 && (
-                              <span className="font-normal"> · recibido {soles(centimos(pago.recibido))}, vuelto {soles(centimos(pago.vuelto))}</span>
-                            )}
-                            {pago.referencia && <span className="font-normal"> · op. {pago.referencia}</span>}
-                          </p>
-                          {pago.anulado && (
-                            <p className="flex items-center gap-1.5 text-lg font-bold text-peligro">
-                              <ProhibitIcon aria-hidden="true" weight="bold" className="size-5 shrink-0" />
-                              Anulado{pago.anuladoPor ? ` por ${pago.anuladoPor.nombre}` : ""}: {pago.motivoAnulacion}
+                {!pedido.pagado && (
+                  <p className="px-4 pt-3 text-xl font-bold text-peligro tabular-nums">Falta cobrar {soles(centimos(pedido.saldoPendiente))}: está en "Por cobrar"</p>
+                )}
+                {/* En el monitor, lo consumido y los pagos van lado a lado: se compara el total con lo cobrado */}
+                <div className="grid gap-x-8 gap-y-4 p-4 lg:grid-cols-2">
+                  <Consumo pedido={pedido} />
+
+                  <section aria-label="Pagos" className="flex flex-col gap-3">
+                    <h3 className="text-lg font-bold text-marino">Pagos</h3>
+                    <ul className="-mt-3 flex flex-col divide-y-2 divide-borde">
+                      {pagos.map((pago) => (
+                        // Las acciones van bajo el pago: el método y el monto nunca se parten
+                        <li key={pago.id} className="flex flex-col gap-2 py-2.5">
+                          <div className={`min-w-0 ${pago.anulado ? "text-texto-suave" : "text-tinta"}`}>
+                            <p className={`text-xl font-bold tabular-nums ${pago.anulado ? "line-through" : ""}`}>
+                              {nombreDeMetodo(pago.metodo)} {soles(centimos(pago.monto))}
+                              {pago.recibido && centimos(pago.vuelto) > 0 && (
+                                <span className="font-normal"> · recibido {soles(centimos(pago.recibido))}, vuelto {soles(centimos(pago.vuelto))}</span>
+                              )}
+                              {pago.referencia && <span className="font-normal"> · op. {pago.referencia}</span>}
                             </p>
-                          )}
-                        </div>
-                        {!pago.anulado && (
-                          <div className="flex flex-wrap gap-2">
-                            <button type="button" onClick={() => setCorrigiendo({ tipo: "metodo", pedido, pago })} className={`${ACCION} border-marino text-marino hover:bg-primario-suave`}>
-                              <ArrowsLeftRightIcon aria-hidden="true" weight="bold" className="size-5" />
-                              Cambiar método
-                            </button>
-                            <button type="button" onClick={() => setCorrigiendo({ tipo: "anular", pedido, pago })} className={`${ACCION} border-peligro text-peligro hover:bg-peligro-suave`}>
-                              <ProhibitIcon aria-hidden="true" weight="bold" className="size-5" />
-                              Anular pago
-                            </button>
+                            {pago.anulado && (
+                              <p className="flex items-center gap-1.5 text-lg font-bold text-peligro">
+                                <ProhibitIcon aria-hidden="true" weight="bold" className="size-5 shrink-0" />
+                                Anulado{pago.anuladoPor ? ` por ${pago.anuladoPor.nombre}` : ""}: {pago.motivoAnulacion}
+                              </p>
+                            )}
                           </div>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                  {conNota === pedido.id ? (
-                    <NotaDeVenta pedidoId={pedido.id} />
-                  ) : (
-                    <button type="button" onClick={() => setConNota(pedido.id)} className={`${ACCION} self-start border-marino text-marino hover:bg-primario-suave`}>
-                      <ReceiptIcon aria-hidden="true" weight="bold" className="size-5" />
-                      Nota de venta
-                    </button>
-                  )}
+                          {!pago.anulado && (
+                            <div className="flex flex-wrap gap-2">
+                              <button type="button" onClick={() => setCorrigiendo({ tipo: "metodo", pedido, pago })} className={`${ACCION} border-marino text-marino hover:bg-primario-suave`}>
+                                <ArrowsLeftRightIcon aria-hidden="true" weight="bold" className="size-5" />
+                                Cambiar método
+                              </button>
+                              <button type="button" onClick={() => setCorrigiendo({ tipo: "anular", pedido, pago })} className={`${ACCION} border-peligro text-peligro hover:bg-peligro-suave`}>
+                                <ProhibitIcon aria-hidden="true" weight="bold" className="size-5" />
+                                Anular pago
+                              </button>
+                            </div>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                    {conNota === pedido.id ? (
+                      <NotaDeVenta pedidoId={pedido.id} />
+                    ) : (
+                      <button type="button" onClick={() => setConNota(pedido.id)} className={`${ACCION} self-start border-marino text-marino hover:bg-primario-suave`}>
+                        <ReceiptIcon aria-hidden="true" weight="bold" className="size-5" />
+                        Nota de venta
+                      </button>
+                    )}
+                  </section>
                 </div>
               </article>
             </li>
@@ -118,6 +128,42 @@ export function Cobrados() {
       <CambiarMetodo corrigiendo={corrigiendo?.tipo === "metodo" ? corrigiendo : null} alCerrar={() => setCorrigiendo(null)} />
       <AnularPago corrigiendo={corrigiendo?.tipo === "anular" ? corrigiendo : null} alCerrar={() => setCorrigiendo(null)} />
     </>
+  );
+}
+
+// Cuántas líneas se ven sin tocar nada; con más, "Ver todo"
+const LINEAS_A_LA_VISTA = 8;
+
+// Lo consumido en el pedido, sumado por producto como en la cuenta de la mesa,
+// con los cargos y el total: lo que la caja compara con lo cobrado
+function Consumo({ pedido }: { pedido: Cobrado["pedido"] }) {
+  const [todo, setTodo] = useState(false);
+  const lineas = acumular(pedido.items);
+  const sobran = lineas.length - LINEAS_A_LA_VISTA;
+  const visibles = todo || sobran <= 0 ? lineas : lineas.slice(0, LINEAS_A_LA_VISTA);
+
+  return (
+    <section aria-label="Lo consumido" className="flex flex-col">
+      <h3 className="text-lg font-bold text-marino">{conteoDeItems(pedido.items)}</h3>
+      <ul className="flex flex-col divide-y-2 divide-borde">
+        {visibles.map((linea) => (
+          <FilaDeCuenta key={linea.clave} compacta linea={linea} />
+        ))}
+      </ul>
+      {sobran > 0 && (
+        <button
+          type="button"
+          aria-expanded={todo}
+          onClick={() => setTodo(!todo)}
+          className="presionable min-h-12 cursor-pointer self-start text-lg font-bold text-marino underline decoration-2 underline-offset-4"
+        >
+          {todo ? "Ver menos" : `Ver todo (${sobran} más)`}
+        </button>
+      )}
+      <div className="mt-2">
+        <Totales cuenta={{ ...pedido, totalPagado: undefined }} />
+      </div>
+    </section>
   );
 }
 

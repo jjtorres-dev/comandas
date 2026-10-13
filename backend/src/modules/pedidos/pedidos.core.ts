@@ -63,23 +63,28 @@ export function serializar(p: PedidoCompleto) {
     pagado: p.pagado,
     pagadoEn: p.pagadoEn,
     creadoEn: p.creadoEn,
-    items: p.items.map((i) => ({
-      id: i.id,
-      varianteId: i.varianteId,
-      areaId: i.areaId,
-      cantidad: i.cantidad,
-      estado: i.estado,
-      nombreProducto: i.nombreProducto,
-      precioUnitario: dinero(i.precioUnitario),
-      notas: i.notas,
-      componentes: i.componentes,
-      orden: i.orden,
-      idRonda: i.idRonda,
-      creadoEn: i.creadoEn,
-      listoEn: i.listoEn,
-      entregadoEn: i.entregadoEn,
-      pasaPorCocina: i.pasaPorCocina,
-    })),
+    items: p.items.map(serializarItem),
+  };
+}
+
+// Forma en que un item viaja en el pedido y en los cobrados del turno
+export function serializarItem(i: PedidoCompleto["items"][number]) {
+  return {
+    id: i.id,
+    varianteId: i.varianteId,
+    areaId: i.areaId,
+    cantidad: i.cantidad,
+    estado: i.estado,
+    nombreProducto: i.nombreProducto,
+    precioUnitario: dinero(i.precioUnitario),
+    notas: i.notas,
+    componentes: i.componentes,
+    orden: i.orden,
+    idRonda: i.idRonda,
+    creadoEn: i.creadoEn,
+    listoEn: i.listoEn,
+    entregadoEn: i.entregadoEn,
+    pasaPorCocina: i.pasaPorCocina,
   };
 }
 

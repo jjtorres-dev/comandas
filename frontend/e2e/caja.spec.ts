@@ -269,3 +269,74 @@ test("abrir caja, cobrar mixto, dividir por platos, corregir un pago y cerrar co
 
   await contexto.close();
 });
+
+test("Cobrados de este turno muestra lo consumido de cada pedido, sumado, junto a sus pagos", async ({ browser, request }, info) => {
+  const tokenMozo = await tokenDe(request, "mozo", "mozo123");
+  const tokenCaja = await tokenDe(request, "cocina", "cocina123");
+  const [mesa] = await mesasLibres(request, 1);
+  const carta = await (await request.get("/api/carta", con(tokenMozo))).json();
+  const variante = (nombre: string): string =>
+    carta.categorias.flatMap((c: { productos: { nombre: string; variantes: { id: string }[] }[] }) => c.productos).find((p: { nombre: string }) => p.nombre === nombre).variantes[0].id;
+
+  // 4 cervezas y un ceviche; después, 2 cervezas más en otra ronda: 6 × 9 + 20 = 74
+  const creado = await request.post("/api/pedidos", {
+    ...con(tokenMozo),
+    data: {
+      idCliente: crypto.randomUUID(),
+      tipo: "MESA",
+      mesaId: mesa.id,
+      items: [
+        { varianteId: variante("Cerveza Pilsen"), cantidad: 4 },
+        { varianteId: variante("Ceviche Simple"), cantidad: 1, notas: ["sin cebolla"] },
+      ],
+    },
+  });
+  expect(creado.status()).toBe(201);
+  const pedido: Creado = (await creado.json()).pedido;
+  const ronda = await request.post(`/api/pedidos/${pedido.id}/items`, {
+    ...con(tokenMozo),
+    data: { idRonda: crypto.randomUUID(), items: [{ varianteId: variante("Cerveza Pilsen"), cantidad: 2 }] },
+  });
+  expect(ronda.ok()).toBeTruthy();
+  expect((await request.post("/api/caja/abrir", { ...con(tokenCaja), data: { montoInicial: 50 } })).ok()).toBeTruthy();
+
+  const contexto = await browser.newContext({ viewport: { width: 1920, height: 1080 }, locale: "es-PE" });
+  const page = await contexto.newPage();
+  await page.addInitScript(() => localStorage.setItem("comandas.negocio", "valentina"));
+  await page.goto("/login");
+  await page.getByLabel("Usuario").fill("cocina");
+  await page.getByRole("textbox", { name: "Contraseña" }).fill("cocina123");
+  await boton(page, "Entrar").click();
+  await boton(page, "Abrir cocina").click();
+  await page.getByRole("link", { name: "Caja" }).click();
+
+  const cobro = page.getByRole("region", { name: "Cobro" });
+  await page.getByRole("navigation", { name: "Por cobrar" }).getByRole("button", { name: new RegExp(`#${pedido.numero}\\b`) }).click();
+  await expect(cobro).toContainText("S/ 74.00");
+  await cobro.getByRole("button", { name: "Yape" }).click();
+  await cobro.getByRole("button", { name: "2. Cobrar S/ 74.00" }).click();
+  await expect(cobro).toContainText("La cuenta quedó pagada");
+
+  await page.getByRole("tab", { name: /Cobrados de este turno/ }).click();
+  const tarjeta = page.getByRole("article", { name: new RegExp(`Pedido ${pedido.numero},`) });
+  const consumo = tarjeta.getByRole("region", { name: "Lo consumido" });
+  // Sin tocar nada: las dos rondas de cerveza en una sola línea, y el plato con su nota
+  await expect(consumo.getByRole("listitem")).toHaveCount(2);
+  await expect(consumo.getByRole("listitem").filter({ hasText: "Cerveza Pilsen" })).toHaveText(/6×\s*Cerveza Pilsen\s*S\/ 54\.00/);
+  await expect(consumo.getByRole("listitem").filter({ hasText: "Ceviche Simple" })).toHaveText(/1×\s*Ceviche Simple\s*sin cebolla\s*S\/ 20\.00/);
+  await expect(consumo).toContainText("1 plato · 6 bebidas");
+  await expect(consumo.getByText("Total", { exact: true }).locator("..")).toContainText("S/ 74.00");
+  await expect(consumo.getByRole("button", { name: /Ver todo/ })).toHaveCount(0);
+  // Los pagos y sus acciones siguen ahí
+  const pagos = tarjeta.getByRole("region", { name: "Pagos" });
+  await expect(pagos).toContainText("Yape S/ 74.00");
+  await expect(pagos.getByRole("button", { name: "Cambiar método" })).toBeVisible();
+  await expect(pagos.getByRole("button", { name: "Anular pago" })).toBeVisible();
+  await expect(tarjeta.getByRole("button", { name: "Nota de venta" })).toBeVisible();
+
+  await page.waitForTimeout(450);
+  await page.screenshot({ path: info.outputPath("capturas", "cobrados-con-detalle.png") });
+
+  await contexto.close();
+  await request.post("/api/caja/cerrar", { ...con(tokenCaja), data: { efectivoContado: 50 } });
+});

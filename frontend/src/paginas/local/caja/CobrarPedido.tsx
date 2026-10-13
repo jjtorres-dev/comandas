@@ -4,8 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ErrorDeCarga, Esqueleto } from "../../../componentes/EstadoDeCarga";
 import { api, mensajeDe } from "../../../lib/api";
 import { claves, consultaCuenta } from "../../../lib/consultas";
-import { platosDeCombo } from "../../../lib/formato";
-import type { Cuenta, ItemDeCuenta, Pedido } from "../../../lib/tipos";
+import type { ItemDeCuenta, Pedido } from "../../../lib/tipos";
 import { nombreDeTipo } from "../../../local/comandas";
 import { centimos, partesIguales, soles } from "../../../local/dinero";
 import { nuevoId } from "../../../mozo/uuid";
@@ -13,6 +12,7 @@ import { TIPOS } from "../../../local/tiposDePedido";
 import { useConexion } from "../../../tiempo-real/contexto";
 import { Ajustar } from "./Ajustar";
 import { FormularioCobro, type PagoAEnviar } from "./FormularioCobro";
+import { FilaDeCuenta as Fila, Totales } from "./ListaDeCuenta";
 import { NotaDeVenta } from "./NotaDeVenta";
 
 type Modo = "todo" | "platos" | "partes";
@@ -354,98 +354,63 @@ export function CobrarPedido({ pedido, alSalir, alSiguiente }: Props) {
   );
 }
 
+// Una fila de la cuenta al cobrar: lo ya pagado y, por platos, el control para marcar
 function FilaDeCuenta({ item, marcable, marcadas, alMarcar }: { item: ItemDeCuenta; marcable: boolean; marcadas: number; alMarcar: (n: number) => void }) {
   const libres = item.cantidad - item.cantidadPagada;
   return (
-    // En pantallas angostas, el control para marcar baja a su propia línea: el nombre no se aplasta
-    <li className={`flex flex-wrap items-center gap-x-3 gap-y-2 py-2.5 ${item.pagado ? "text-texto-suave" : "text-tinta"}`}>
-      <span className="w-10 shrink-0 text-2xl font-bold tabular-nums">{item.cantidad}×</span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-xl leading-tight font-bold wrap-anywhere">{item.nombreProducto}</span>
-        {item.componentes.length > 0 && <span className="block text-lg leading-snug">{platosDeCombo(item.componentes)}</span>}
-        {item.cantidadPagada > 0 && (
+    <Fila
+      linea={{ cantidad: item.cantidad, nombre: item.nombreProducto, componentes: item.componentes, centimos: centimos(item.subtotal) }}
+      apagada={item.pagado}
+      estado={
+        item.cantidadPagada > 0 && (
           <span className="mt-0.5 flex items-center gap-1 text-lg font-bold text-listo-fuerte">
             <CheckIcon aria-hidden="true" weight="bold" className="size-5 shrink-0" />
             {item.pagado ? "Pagado" : `${item.cantidadPagada} de ${item.cantidad} pagado`}
           </span>
-        )}
-      </span>
-      {marcable && libres > 0 ? (
-        libres === 1 ? (
-          <button
-            type="button"
-            role="checkbox"
-            aria-checked={marcadas === 1}
-            aria-label={`Cobrar ${item.nombreProducto}`}
-            onClick={() => alMarcar(marcadas === 1 ? 0 : 1)}
-            className={`presionable order-last ml-auto grid size-12 shrink-0 cursor-pointer place-items-center rounded-control border-2 sm:order-none sm:ml-0 ${
-              marcadas === 1 ? "border-tinta bg-primario text-tinta" : "border-borde-fuerte bg-superficie text-transparent hover:bg-primario-suave"
-            }`}
-          >
-            <CheckIcon aria-hidden="true" weight="bold" className="size-7" />
-          </button>
-        ) : (
-          <span className="order-last ml-auto flex shrink-0 items-center gap-2 sm:order-none sm:ml-0">
-            <button
-              type="button"
-              aria-label={`Una unidad menos de ${item.nombreProducto}`}
-              disabled={marcadas === 0}
-              onClick={() => alMarcar(marcadas - 1)}
-              className="presionable grid size-12 cursor-pointer place-items-center rounded-control border-2 border-marino text-marino disabled:cursor-not-allowed disabled:border-borde disabled:text-texto-suave"
-            >
-              <MinusIcon aria-hidden="true" weight="bold" className="size-6" />
-            </button>
-            <span aria-live="polite" aria-label={`${marcadas} de ${libres} marcadas`} className="w-16 text-center text-xl font-bold tabular-nums">
-              {marcadas} de {libres}
-            </span>
-            <button
-              type="button"
-              aria-label={`Una unidad más de ${item.nombreProducto}`}
-              disabled={marcadas >= libres}
-              onClick={() => alMarcar(marcadas + 1)}
-              className="presionable grid size-12 cursor-pointer place-items-center rounded-control bg-primario text-tinta disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <PlusIcon aria-hidden="true" weight="bold" className="size-6" />
-            </button>
-          </span>
         )
-      ) : null}
-      <span className="w-24 shrink-0 text-right text-xl font-bold tabular-nums">{soles(centimos(item.subtotal))}</span>
-    </li>
-  );
-}
-
-// Los montos son los del servidor, tal cual
-function Totales({ cuenta }: { cuenta: Cuenta }) {
-  const fila = (nombre: string, monto: string, signo = "") => (
-    <div className="flex justify-between gap-3">
-      <dt>{nombre}</dt>
-      <dd>
-        {signo}
-        {soles(centimos(monto))}
-      </dd>
-    </div>
-  );
-  const conCargos = centimos(cuenta.costoEnvio) > 0 || centimos(cuenta.cargoTapers) > 0 || centimos(cuenta.descuento) > 0;
-  return (
-    <dl className="flex flex-col gap-1 border-t-2 border-borde pt-3 text-xl tabular-nums">
-      {conCargos && fila("Subtotal", cuenta.subtotal)}
-      {centimos(cuenta.costoEnvio) > 0 && fila("Envío", cuenta.costoEnvio)}
-      {centimos(cuenta.cargoTapers) > 0 && fila(`Tapers (${cuenta.cantidadTapers})`, cuenta.cargoTapers)}
-      {centimos(cuenta.descuento) > 0 && fila("Descuento", cuenta.descuento, "− ")}
-      <div className="flex items-baseline justify-between gap-3 text-2xl font-bold text-tinta">
-        <dt>Total</dt>
-        <dd>{soles(centimos(cuenta.total))}</dd>
-      </div>
-      {centimos(cuenta.totalPagado) > 0 && (
-        <>
-          {fila("Ya pagado", cuenta.totalPagado, "− ")}
-          <div className="flex items-baseline justify-between gap-3 text-2xl font-bold text-tinta">
-            <dt>Saldo</dt>
-            <dd>{soles(centimos(cuenta.saldoPendiente))}</dd>
-          </div>
-        </>
-      )}
-    </dl>
+      }
+      control={
+        marcable && libres > 0 ? (
+          libres === 1 ? (
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={marcadas === 1}
+              aria-label={`Cobrar ${item.nombreProducto}`}
+              onClick={() => alMarcar(marcadas === 1 ? 0 : 1)}
+              className={`presionable order-last ml-auto grid size-12 shrink-0 cursor-pointer place-items-center rounded-control border-2 sm:order-none sm:ml-0 ${
+                marcadas === 1 ? "border-tinta bg-primario text-tinta" : "border-borde-fuerte bg-superficie text-transparent hover:bg-primario-suave"
+              }`}
+            >
+              <CheckIcon aria-hidden="true" weight="bold" className="size-7" />
+            </button>
+          ) : (
+            <span className="order-last ml-auto flex shrink-0 items-center gap-2 sm:order-none sm:ml-0">
+              <button
+                type="button"
+                aria-label={`Una unidad menos de ${item.nombreProducto}`}
+                disabled={marcadas === 0}
+                onClick={() => alMarcar(marcadas - 1)}
+                className="presionable grid size-12 cursor-pointer place-items-center rounded-control border-2 border-marino text-marino disabled:cursor-not-allowed disabled:border-borde disabled:text-texto-suave"
+              >
+                <MinusIcon aria-hidden="true" weight="bold" className="size-6" />
+              </button>
+              <span aria-live="polite" aria-label={`${marcadas} de ${libres} marcadas`} className="w-16 text-center text-xl font-bold tabular-nums">
+                {marcadas} de {libres}
+              </span>
+              <button
+                type="button"
+                aria-label={`Una unidad más de ${item.nombreProducto}`}
+                disabled={marcadas >= libres}
+                onClick={() => alMarcar(marcadas + 1)}
+                className="presionable grid size-12 cursor-pointer place-items-center rounded-control bg-primario text-tinta disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <PlusIcon aria-hidden="true" weight="bold" className="size-6" />
+              </button>
+            </span>
+          )
+        ) : null
+      }
+    />
   );
 }

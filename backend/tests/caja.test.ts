@@ -463,6 +463,13 @@ describe("cobrados del turno y corrección de pagos", () => {
       pedido: { tipo: "MESA", mesa: { nombre: "Mesa 1" }, total: "53.00", pagado: true, saldoPendiente: "0.00" },
       pagos: [{ metodo: "YAPE", monto: "53.00", referencia: "OP 1", anulado: false }],
     });
+    // Lo consumido y los cargos viajan con el cobrado, para verificar la cuenta
+    expect(res.body.cobrados[1].pedido).toMatchObject({ subtotal: "53.00", costoEnvio: "0.00", cargoTapers: "0.00", cantidadTapers: 0, descuento: "0.00" });
+    expect(res.body.cobrados[1].pedido.items.map((i: { cantidad: number; nombreProducto: string; precioUnitario: string }) => `${i.cantidad} ${i.nombreProducto} ${i.precioUnitario}`)).toEqual([
+      "2 Ceviche Simple 20.00",
+      "1 Chicharrón de Pota — S/ 10 10.00",
+      "1 Gaseosa Personal 3.00",
+    ]);
     expect(res.body.cobrados[0]).toMatchObject({
       pedido: { tipo: "PARA_LLEVAR", cliente: { nombre: "Rosa" }, pagado: false },
       pagos: [{ metodo: "EFECTIVO", monto: "2.00", recibido: "5.00", vuelto: "3.00" }],

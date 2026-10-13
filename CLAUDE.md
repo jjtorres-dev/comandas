@@ -115,8 +115,12 @@ Después, seguir `DESIGN.md`: los tokens están en `frontend/src/estilos.css`
   (`carta.cocina`); `UMBRALES` de `comandas.ts` solo vale mientras carga.
 - Caja (`/local/caja`): `paginas/local/Caja.tsx` y `paginas/local/caja/`
   (`CobrarPedido` con la cuenta y las formas de dividir, `FormularioCobro` con
-  métodos, vuelto, pago mixto y atajos de teclado, `Cobrados` con las
-  correcciones, `Turno` con abrir, la franja y cerrar). Las cuentas de la
+  métodos, vuelto, pago mixto y atajos de teclado, `Cobrados` con lo consumido
+  de cada pedido y las correcciones, `Turno` con abrir, la franja y cerrar).
+  La fila de una cuenta y sus totales son de `ListaDeCuenta.tsx`
+  (`FilaDeCuenta`, `Totales`): la usan la cuenta al cobrar y Cobrados, que
+  suma las rondas con `acumular` de `mozo/cuenta.ts` y muestra 8 líneas antes
+  de "Ver todo". Las cuentas de la
   pantalla se hacen en céntimos enteros (`local/dinero.ts`); lo que vale es lo
   que responde el servidor. Las consultas de caja cuelgan de `claves.caja` y la
   cuenta y la nota de venta de `claves.pedidos`.

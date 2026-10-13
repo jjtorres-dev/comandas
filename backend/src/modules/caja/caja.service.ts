@@ -1,10 +1,10 @@
-import { EstadoPedido, MetodoPago, Prisma } from "../../generated/prisma/client.js";
+import { EstadoItem, EstadoPedido, MetodoPago, Prisma } from "../../generated/prisma/client.js";
 import { CERO, dinero, sumar } from "../../lib/dinero.js";
 import { conflicto } from "../../lib/errores.js";
 import { prisma, type Tx } from "../../lib/prisma.js";
 import type { Sesion } from "../../middlewares/auth.js";
 import { emitirANegocio } from "../../realtime/socket.js";
-import { bloquearNegocio } from "../pedidos/pedidos.core.js";
+import { bloquearNegocio, serializarItem } from "../pedidos/pedidos.core.js";
 import type { DatosAbrirCaja, DatosCerrarCaja } from "./caja.schemas.js";
 
 export const incluirTurno = {
@@ -158,6 +158,8 @@ export async function cobradosDelTurno(negocioId: string) {
     where: { negocioId, pagos: { some: { turnoCajaId: turno.id } } },
     include: {
       mesa: { select: { id: true, nombre: true } },
+      // Lo consumido, para que la caja verifique el cobro: sin lo cancelado
+      items: { where: { estado: { not: EstadoItem.CANCELADO } }, orderBy: [{ orden: "asc" }, { creadoEn: "asc" }, { id: "asc" }] },
       // Todos los pagos vivos del pedido dan el saldo; los de este turno se listan
       pagos: { orderBy: { creadoEn: "asc" }, include: { anuladoPor: { select: { id: true, nombre: true } } } },
     },
@@ -174,10 +176,16 @@ export async function cobradosDelTurno(negocioId: string) {
           tipo: pedido.tipo,
           mesa: pedido.mesa,
           cliente: pedido.nombreCliente || pedido.telefonoCliente ? { nombre: pedido.nombreCliente, telefono: pedido.telefonoCliente } : null,
+          subtotal: dinero(pedido.subtotal),
+          costoEnvio: dinero(pedido.costoEnvio),
+          cantidadTapers: pedido.cantidadTapers,
+          cargoTapers: dinero(pedido.cargoTapers),
+          descuento: dinero(pedido.descuento),
           total: dinero(pedido.total),
           totalPagado: dinero(totalPagado),
           saldoPendiente: dinero(Prisma.Decimal.max(0, pedido.total.minus(totalPagado))),
           pagado: pedido.pagado,
+          items: pedido.items.map(serializarItem),
         },
         pagos: delTurno.map(serializarPago),
         ultimoPagoEn: delTurno[delTurno.length - 1].creadoEn,

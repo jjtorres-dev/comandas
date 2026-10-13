@@ -198,10 +198,17 @@ export type Cobrado = {
     tipo: TipoPedido;
     mesa: { id: string; nombre: string } | null;
     cliente: { nombre: string | null; telefono: string | null } | null;
+    subtotal: string;
+    costoEnvio: string;
+    cantidadTapers: number;
+    cargoTapers: string;
+    descuento: string;
     total: string;
     totalPagado: string;
     saldoPendiente: string;
     pagado: boolean;
+    // Lo consumido, sin lo cancelado
+    items: ItemPedido[];
   };
   pagos: PagoRegistrado[];
   ultimoPagoEn: string;
